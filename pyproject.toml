@@ -1,0 +1,86 @@
+[project]
+name = "droidmind"
+version = "0.1.0"
+description = "Control Android devices with MCP"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Stefanie Jane", email = "stef@hyperbliss.tech" }]
+keywords = ["mcp", "android", "ai", "llm", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "mcp[cli]>=1.3.0",
+    "adb-shell[async]>=0.4.4",
+    "rich>=13.9.4",
+    "pytest>=8.3.4",
+    "httpx>=0.28.1",
+    "sse-starlette>=2.2.1",
+    "uvicorn>=0.34.0",
+    "starlette>=0.46.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+sse = [
+    "uvicorn>=0.27.0",
+    "starlette>=0.46.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/hyperbliss/droidmind"
+Issues = "https://github.com/hyperbliss/droidmind/issues"
+Documentation = "https://github.com/hyperbliss/droidmind#readme"
+
+[project.scripts]
+droidmind = "droidmind.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["droidmind"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.black]
+line-length = 100
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+select = ["E", "F", "B", "I", "W"]
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=0.25.3",
+]
