@@ -1,227 +1,191 @@
-<think>I need to tone down the cheesiness a bit while still keeping it fun, and correct the license to Apache 2.0 instead of MIT. I'll update the README.md to address these points while maintaining the overall structure and information.</think># 🤖 DroidMind
+# DroidMind 🤖 ✨
 
-<div align="center">
+Control Android devices with AI assistants using the Model Context Protocol (MCP).
 
-![DroidMind Logo](https://via.placeholder.com/200x200.png?text=DroidMind)
+DroidMind is a powerful bridge between AI assistants and Android devices, enabling control, debugging, and analysis through natural language. By implementing the Model Context Protocol (MCP), DroidMind allows AI models to directly interact with Android devices via ADB.
 
-### _Intelligent Bridge for Android Development_
+![DroidMind Banner](docs/images/banner.png)
 
-[![Model Context Protocol](https://img.shields.io/badge/MCP-Compatible-brightgreen.svg)](https://modelcontextprotocol.io/)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Progress](https://img.shields.io/badge/Progress-16%25-cyan.svg)](https://github.com/yourusername/droidmind)
+## ✨ Features
 
-</div>
+- 📱 **Device Control**: Connect to Android devices over TCP/IP and execute commands
+- 📊 **System Analysis**: Inspect device properties, logs, and system information
+- 🔍 **File System Access**: Browse and manipulate files on connected devices
+- 📷 **Screenshots**: Capture device screens for visual analysis and debugging
+- 🔄 **App Management**: Install, uninstall, and analyze applications
+- 💬 **MCP Integration**: Seamless connection to AI assistants through the Model Context Protocol
 
-<br>
-
-## 💫 Seamless Connection to Your Android Devices
-
-DroidMind creates a direct link between AI assistants and Android devices, enabling more efficient development workflows. By implementing the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), DroidMind transforms your AI assistant into a powerful Android development companion.
-
-```
-👩‍💻 You → AI Assistant → DroidMind → Android Device 📱
-```
-
-No more context switching between your IDE, terminal, and device. Let AI help streamline your Android workflow.
-
-<br>
-
-## 🌟 Key Features
-
-DroidMind provides these capabilities to your AI assistant:
-
-### ✅ Implemented & Ready
-
-- **🔍 Device Discovery** - Detect and connect to Android devices
-- **📱 Device Properties** - Retrieve detailed system information
-- **📂 File System Navigation** - Browse directories on device
-- **📊 Logcat Analysis** - Access and parse device logs
-- **📸 Screenshot Capture** - Visualize the device screen
-- **🔄 Device Management** - Connect, disconnect, and reboot devices
-
-### 🚧 Coming Soon
-
-- Wireless device connections
-- App installation and management
-- Performance monitoring
-- UI testing and automation
-- ROM and system development tools
-
-<br>
-
-## ⚡ Quick Start
+## 🚀 Installation
 
 ```bash
-# Install the package
+# Install from PyPI
 pip install droidmind
 
-# Start the server
-droidmind serve
-
-# Configure with your AI assistant in Cursor
-# (Configuration details in docs)
+# Or install from source
+git clone https://github.com/hyperbliss/droidmind.git
+cd droidmind
+pip install -e .
 ```
 
-<br>
+## 📋 Prerequisites
 
-## 🖥️ Example Interactions
+- Python 3.8 or higher
+- Android device with ADB enabled
+- For network control: Android device with ADB over TCP/IP enabled
 
-Here's a glimpse of DroidMind in action:
+## 🔧 Quick Start
 
-```
-User: What Android devices are connected?
-
-AI: Let me check that for you...
-
-[AI uses DroidMind to detect devices]
-
-I found 2 connected devices:
-1. Pixel 6 Pro (Android 13) - Serial: 84KX00W4E
-2. Samsung Galaxy S21 (Android 12) - Serial: R5CR30CKLVH
-
-What would you like to do with these devices?
-```
-
-```
-User: Show me recent logs from the Pixel
-
-AI: Here are the recent logs from your Pixel 6 Pro:
-
-[AI uses DroidMind to retrieve logcat]
-
-I notice several issues in these logs:
-1. There's an SQLiteException in your app at line 342
-2. Your location service is triggering excessively
-3. A background service is consuming high CPU
-
-Would you like me to help diagnose any of these issues?
-```
-
-<br>
-
-## 🧩 System Architecture
-
-```
-┌─────────────────────┐      ┌─────────────────────┐      ┌─────────────────────┐
-│                     │      │                     │      │                     │
-│  IDE + AI ASSISTANT │◄────►│     DROIDMIND      │◄────►│  ANDROID DEVICES    │
-│                     │      │                     │      │                     │
-└─────────────────────┘      └─────────────────────┘      └─────────────────────┘
-         ▲                            │                            │
-         │                            ▼                            │
-┌─────────────────────┐      ┌─────────────────────┐              │
-│                     │      │                     │              │
-│  HUMAN DEVELOPER    │◄────►│   MODEL CONTEXT     │              │
-│                     │      │     PROTOCOL        │              │
-└─────────────────────┘      └─────────────────────┘              ▼
-                                                         [REAL DEVICES, EMULATORS]
-```
-
-<br>
-
-## 🏗️ Current Build Status
-
-DroidMind is actively under development. Current progress:
-
-```
-📊 Core Framework:      [█████     ] 50%
-📱 Device Management:   [███       ] 30%
-📁 File System:         [█         ] 10%
-📊 Logging & Diagnostics:[██        ] 20%
-🧪 Testing:             [███       ] 30%
-🧰 Installation:        [██        ] 20%
-
-Overall Progress:       [█▓        ] 16%
-```
-
-<br>
-
-## 🔮 Usage Examples
-
-### Device Management
-
-```python
-# Connect to a device
-await connect_device("192.168.1.100")
-
-# Get device properties
-properties = await device_properties("84KX00W4E")
-
-# Reboot a device
-await reboot_device("84KX00W4E")
-```
-
-### File System Operations
-
-```python
-# List directory contents
-directory = await list_directory("84KX00W4E", "/sdcard/Download")
-```
-
-### Diagnostics
-
-```python
-# Get logs
-logs = await device_logcat("84KX00W4E")
-
-# Capture screenshot
-screenshot = await capture_screenshot("84KX00W4E")
-```
-
-<br>
-
-## 🚀 Development Roadmap
-
-DroidMind's development plan:
-
-- **Phase 1: Foundation** - ✅ Core framework and essential features (Current)
-- **Phase 2: Expansion** - File system operations, app management, enhanced diagnostics
-- **Phase 3: Automation** - UI testing, performance analysis, ROM development
-- **Phase 4: Intelligence** - AI-assisted diagnostics, smart monitoring, predictive debugging
-
-<br>
-
-## 🧪 Running Tests
-
-Keep your code reliable:
+### Terminal Mode (stdio)
 
 ```bash
-# Run all tests
-pytest
+# Start DroidMind in terminal mode
+droidmind
 
-# Run specific test categories
-pytest tests/test_adb_wrapper.py
-pytest tests/test_server.py
+# Then connect to a device
+> connect_device --host 192.168.1.100 --port 5555
 ```
 
-<br>
+### Network Mode (SSE)
+
+```bash
+# Start DroidMind as a network server
+droidmind --transport sse --host 0.0.0.0 --port 8000
+
+# Access the web interface at http://localhost:8000
+```
+
+### Using with Claude or ChatGPT
+
+1. Start DroidMind in SSE mode:
+   ```bash
+   droidmind --transport sse --host 0.0.0.0 --port 8000
+   ```
+
+2. Connect your AI assistant using the MCP protocol URI:
+   ```
+   sse://your-ip-address:8000/sse
+   ```
+
+3. Your AI assistant can now control Android devices through natural language!
+
+## 💻 CLI Options
+
+DroidMind comes with a beautiful CLI that provides various options:
+
+```
+Usage: droidmind [OPTIONS]
+
+  DroidMind MCP Server - Control Android devices with AI assistants.
+
+  This server implements the Model Context Protocol (MCP) to allow AI
+  assistants to control and interact with Android devices via ADB.
+
+Options:
+  --host TEXT                     Host to bind the server to (use 0.0.0.0 for
+                                  all interfaces)
+  --port INTEGER                  Port to listen on for network connections
+  --transport [stdio|sse]         Transport type to use (stdio for terminal,
+                                  sse for network)
+  --debug / --no-debug            Enable debug mode for more verbose logging
+  --log-level [DEBUG|INFO|WARNING|ERROR|CRITICAL]
+                                  Set the logging level
+  -h, --help                      Show this message and exit
+```
+
+## 📱 Preparing Android Devices
+
+To use your Android device with DroidMind, you need to enable ADB debugging:
+
+1. Enable Developer Options by tapping 7 times on the Build Number in Settings
+2. Enable USB Debugging in Developer Options
+3. For network control, enable ADB over TCP/IP:
+   ```bash
+   adb tcpip 5555
+   ```
+4. Get your device's IP address from Settings > About Phone > Status > IP Address
+
+## 🔌 Example Usage
+
+### Using the SSE Client Example
+
+DroidMind includes an example client that demonstrates how to interact with the server using SSE:
+
+```bash
+# List connected devices
+python examples/sse-client-example.py --action list
+
+# Connect to a device
+python examples/sse-client-example.py --action connect --host 192.168.1.100
+
+# Get device properties
+python examples/sse-client-example.py --action properties --serial 192.168.1.100:5555
+
+# Run a shell command
+python examples/sse-client-example.py --action shell --serial 192.168.1.100:5555 --command "dumpsys battery"
+
+# Listen for events
+python examples/sse-client-example.py --action listen
+```
+
+### Using DroidMind with Claude
+
+1. Start the DroidMind server in SSE mode
+2. In your conversation with Claude, enter the following:
+   ```
+   Please connect to my Android device using this MCP URL: sse://my-ip-address:8000/sse
+   ```
+3. Ask Claude to perform actions like:
+   - "Connect to my Android device at 192.168.1.100"
+   - "Show me all connected devices"
+   - "Get properties for my Pixel phone"
+   - "Capture a screenshot from my device"
+   - "Check battery status on my device"
+
+## 🛠️ Available Resources and Tools
+
+DroidMind provides several MCP resources and tools that can be accessed by AI assistants:
+
+### Resources
+- `device://list` - List all connected devices
+- `device://{serial}/properties` - Get detailed device properties
+- `logs://{serial}/logcat` - Get recent logs from the device
+- `fs://{serial}/list/{path}` - List directory contents on the device
+
+### Tools
+- `connect_device` - Connect to a device via TCP/IP
+- `disconnect_device` - Disconnect from a device
+- `shell_command` - Run a shell command on the device
+- `install_app` - Install an APK on the device
+- `capture_screenshot` - Take a screenshot of the device
+- `reboot_device` - Reboot the device (normal, recovery, or bootloader)
+
+## 📊 Example Queries
+
+Here are some example queries you can ask an AI assistant connected to DroidMind:
+
+- "List all connected Android devices"
+- "Connect to my phone at 192.168.1.100"
+- "Show me the battery stats on my Pixel phone"
+- "What's the Android version of my connected device?"
+- "Take a screenshot of my phone and tell me what apps are running"
+- "Check if my device has any error messages in the logs"
+- "Install this APK file on my device"
+- "Reboot my phone into recovery mode"
 
 ## 🤝 Contributing
 
-Contributions are welcome! Whether you're interested in code, documentation, or testing, we'd love your help.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## 📝 License
 
-<br>
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 📜 License
+## 🙏 Acknowledgments
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+- The [MCP Protocol](https://github.com/anthropics/mcp) team for the amazing protocol
+- Everyone who contributed to the adb-shell library
 
-<br>
+## 📬 Contact
 
-<div align="center">
-
-## 💖 Made with Care
-
-Built to enhance Android development through the power of AI.
-<br>
-
-**[Documentation](docs/)** • **[Issues](issues/)** • **[Discussions](discussions/)**
-
-</div>
+- GitHub: [hyperbliss/droidmind](https://github.com/hyperbliss/droidmind)
+- Email: stef@hyperbliss.tech

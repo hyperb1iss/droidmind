@@ -1,0 +1,93 @@
+# DroidMind - Quick Usage Examples
+
+## Starting the server with SSE support
+
+# Basic (localhost only)
+droidmind --transport sse
+
+# Listen on all interfaces (for network access)
+droidmind --transport sse --host 0.0.0.0 --port 8000
+
+# With debug logging enabled
+droidmind --transport sse --host 0.0.0.0 --port 8000 --debug
+
+## Connecting AI assistants to DroidMind
+
+# MCP URL format for AI assistants
+sse://your-server-ip:8000/sse
+
+# Example prompts for AI assistants
+"Connect to my DroidMind server at sse://192.168.1.100:8000/sse"
+"Please list all connected Android devices"
+"Connect to my Android device at 192.168.1.101"
+"Get the system properties of my connected device"
+"Capture a screenshot from my phone"
+"Show me the battery stats on my device"
+"Check if there are any error messages in the logcat"
+
+## Using the example SSE client
+
+# List connected devices
+python examples/sse-client-example.py --action list --server http://localhost:8000
+
+# Connect to a device
+python examples/sse-client-example.py --action connect --host 192.168.1.101 --server http://localhost:8000
+
+# Get device properties
+python examples/sse-client-example.py --action properties --serial 192.168.1.101:5555 --server http://localhost:8000
+
+# Run a shell command
+python examples/sse-client-example.py --action shell --serial 192.168.1.101:5555 --command "dumpsys battery" --server http://localhost:8000
+
+# Listen for events
+python examples/sse-client-example.py --action listen --server http://localhost:8000
+
+## Example curl commands
+
+# Get server info
+curl http://localhost:8000/info
+
+# Send a message (list devices)
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"id":"request-1","type":"request","method":"readResource","params":{"uri":"device://list"}}' \
+  http://localhost:8000/messages/request-1
+
+# Connect to SSE stream (in a separate terminal)
+curl -N http://localhost:8000/sse
+
+## Preparing Android devices
+
+# Enable ADB over network on device
+adb tcpip 5555
+
+# Get device IP address
+adb shell ip addr show wlan0
+
+# Connect to device from ADB directly (to test)
+adb connect 192.168.1.101:5555
+
+# Then use DroidMind to manage the connection
+droidmind --transport sse --host 0.0.0.0 --port 8000
+
+## Common useful ADB commands through DroidMind
+
+# Battery stats
+"Run shell command 'dumpsys battery' on my device"
+
+# Network info
+"Run shell command 'ip addr' on my device"
+
+# Storage stats
+"Run shell command 'df -h' on my device"
+
+# List installed packages
+"Run shell command 'pm list packages' on my device"
+
+# Memory usage
+"Run shell command 'dumpsys meminfo' on my device"
+
+# CPU usage
+"Run shell command 'top -n 1' on my device"
+
+# Display properties
+"Run shell command 'dumpsys display' on my device" 
