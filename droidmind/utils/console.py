@@ -385,15 +385,6 @@ def create_custom_handler() -> logging.Handler:
             ):
                 return
 
-            if record.levelno >= logging.ERROR:
-                record.msg = f"[{COLORS['hot_pink']}]✗[/] {record.msg}"
-            elif record.levelno >= logging.WARNING:
-                record.msg = f"[{COLORS['amber']}]![/] {record.msg}"
-            elif record.levelno >= logging.INFO:
-                # Don't modify INFO messages that already have our custom prefixes
-                if not (record.msg.startswith("✨") or record.msg.startswith("[i]") or record.msg.startswith("[✓]")):
-                    record.msg = f"[{COLORS['cool_blue']}]i[/] {record.msg}"
-
             super().emit(record)
 
     return NeonGlamHandler(rich_tracebacks=True, markup=True)

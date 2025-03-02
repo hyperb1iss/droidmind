@@ -311,7 +311,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
                 console.success(f"{ip}:{port}")
 
     # Create a server instance that we can access for shutdown
-    config = uvicorn.Config(app, host=host, port=port, log_level="debug" if debug else "info")
+    config = uvicorn.Config(app, host=host, port=port, log_level="debug" if debug else "info", log_config=None)
     server = uvicorn.Server(config)
 
     # Configure graceful shutdown

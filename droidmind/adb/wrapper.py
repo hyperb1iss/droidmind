@@ -17,7 +17,7 @@ from adb_shell.exceptions import (
     AdbCommandFailureException,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("droidmind")
 
 
 class ADBWrapper:

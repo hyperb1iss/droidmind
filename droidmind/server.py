@@ -70,11 +70,10 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
             config["host"] = "127.0.0.1"
             config["host_note"] = f"(Changed from {host} - invalid address)"
 
-    # Display beautiful configuration with NeonGlam aesthetic - use the new unified function
+    # Display beautiful configuration with NeonGlam aesthetic
     console.display_system_info(config)
 
-    # NOW configure logging - after visual elements are displayed
-    # Create and configure the custom NeonGlam handler
+    # Configure logging using our ultimate NeonGlam config from console.py
     handler = console.create_custom_handler()
 
     # Configure basic logging with our custom handler
@@ -85,37 +84,15 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
         handlers=[handler],
         force=True,  # Make sure we override any existing configuration
     )
+    logger.setLevel(logging.DEBUG if debug else getattr(logging, log_level))
+    logger.handlers = [handler]
+    logger.propagate = False
 
-    # Configure loggers
-    if debug:
-        logging.getLogger("droidmind").setLevel(logging.DEBUG)
-        logging.getLogger("uvicorn.access").setLevel(logging.DEBUG)
-        logging.getLogger("uvicorn.error").setLevel(logging.DEBUG)
-    else:
-        logging.getLogger("droidmind").setLevel(getattr(logging, log_level))
-
-    # Properly configure Uvicorn loggers to use our handler and filter redundant messages
-    for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
-        uvicorn_logger = logging.getLogger(logger_name)
+    # Also configure Uvicorn loggers with our custom handler
+    for uv_logger in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
+        uvicorn_logger = logging.getLogger(uv_logger)
         uvicorn_logger.handlers = [handler]
         uvicorn_logger.propagate = False
-
-        # Apply a filter to the Uvicorn logger to prevent duplicate startup messages
-        class UvicornFilter(logging.Filter):
-            def filter(self, record):
-                # Skip redundant Uvicorn messages we don't need
-                skip_messages = [
-                    "Started server process",
-                    "Waiting for application startup",
-                    "Application startup complete",
-                    "Uvicorn running on http://",
-                    "Press CTRL+C",
-                ]
-                return not any(msg in record.getMessage() for msg in skip_messages)
-
-        # Add the filter to each handler
-        for handler in uvicorn_logger.handlers:
-            handler.addFilter(UvicornFilter())
 
     # Set up signal handlers
     def handle_exit(signum: int, frame: object) -> None:
