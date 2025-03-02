@@ -53,6 +53,7 @@ Documentation = "https://github.com/hyperbliss/droidmind#readme"
 
 [project.scripts]
 droidmind = "droidmind.server:main"
+droidmind-client = "droidmind.client:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -8,9 +8,11 @@ allowing AI assistants to interact with Android devices.
 import contextlib
 import logging
 import os
+import re
 
 from mcp.server.fastmcp import Context, Image
 
+from droidmind.adb.service import get_adb
 from droidmind.adb.wrapper import ADBWrapper
 from droidmind.core import mcp
 
@@ -25,7 +27,8 @@ async def devicelist(ctx: Context, random_string: str = "default") -> str:
     Returns:
         A formatted list of connected devices with their basic information.
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     devices = await adb.get_devices()
 
@@ -198,41 +201,58 @@ async def list_directory(serial: str, path: str, ctx: Context) -> str:
 
 
 @mcp.tool()
-async def connect_device(host: str, ctx: Context, port: int = 5555) -> str:
+async def connect_device(ctx: Context, ip_address: str, port: int = 5555) -> str:
     """
-    Connect to an Android device via TCP/IP.
+    Connect to an Android device over TCP/IP.
 
     Args:
-        host: IP address or hostname of the device
-        port: Port to connect to (default: 5555)
+        ip_address: The IP address of the device to connect to
+        port: The port to connect to (default: 5555)
 
     Returns:
-        Connection result message
+        A message indicating success or failure
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Validate IP address format
+    ip_pattern = r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$"
+    if not re.match(ip_pattern, ip_address):
+        return "❌ Invalid IP address format. Please provide a valid IPv4 address."
+
+    # Validate port range
+    if port < 1 or port > 65535:
+        return "❌ Invalid port number. Port must be between 1 and 65535."
+
+    # Get ADB directly from the service
+    adb = await get_adb()
 
     try:
-        # Try to connect to the device
-        await ctx.report_progress(0, 2)
+        # Attempt to connect to the device
+        result = await adb.connect_device(f"{ip_address}:{port}")
 
-        ctx.info(f"Connecting to device at {host}:{port}...")
-        serial = await adb.connect_device_tcp(host, port)
+        if "connected" in result.lower():
+            # Get device info for a more helpful response
+            devices = await adb.get_devices()
+            for device in devices:
+                if ip_address in device.get("serial", ""):
+                    model = device.get("model", "Unknown model")
+                    android_version = device.get("android_version", "Unknown version")
+                    return f"""
+# ✨ Device Connected Successfully! ✨
 
-        await ctx.report_progress(1, 2)
+- **Device**: {model}
+- **Connection**: {ip_address}:{port}
+- **Android Version**: {android_version}
 
-        # Get basic device info
-        devices = await adb.get_devices()
-        device_info: dict[str, str] = next((d for d in devices if d["serial"] == serial), {})
+The device is now available for commands and operations.
+                    """
 
-        model = device_info.get("model", "Unknown model")
-        android_version = device_info.get("android_version", "Unknown version")
-
-        await ctx.report_progress(2, 2)
-
-        return f"Successfully connected to {model} (Android {android_version}) at {serial}"
+            # If we couldn't get detailed device info
+            return f"✅ Successfully connected to device at {ip_address}:{port}"
+        else:
+            return f"❌ Failed to connect to device at {ip_address}:{port}: {result}"
 
     except Exception as e:
-        return f"Failed to connect to device: {e!s}"
+        logger.exception(f"Error connecting to device: {e}")
+        return f"❌ Error connecting to device at {ip_address}:{port}: {e!s}"
 
 
 @mcp.tool()
