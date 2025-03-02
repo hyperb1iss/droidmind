@@ -1,0 +1,35 @@
+---
+description: Description: These files contain reference documentation and guides to aid in development efforts for the DroidMind project
+globs: docs/**/*
+alwaysApply: false
+---
+# Documentation Organization
+
+## Project Overview
+- @project.md: Main architectural documentation
+- @README.md: Quick-start guide and feature summary
+- @plan.md: Development roadmap and planning
+
+## Technical References
+- @python-mcp.md: Guide for Model Context Protocol Python implementation
+- @mcp-src.txt: Source reference for MCP implementation
+- @llms-full.txt: LLM integration documentation
+
+## Examples and Testing
+- @examples.txt: Example usage scenarios and code snippets
+- @test_examples.py: Python test examples for MCP integrations
+- @doc-summary.txt: Condensed documentation for quick reference
+
+## Documentation Guidelines
+1. Follow consistent formatting across all docs
+2. Include code examples for all key features
+3. Cross-reference between docs using @ notation
+4. Update documentation when implementations change
+5. Include version compatibility information
+
+## Key Concepts to Document
+- Device connection and management
+- ADB command execution and security
+- MCP resource and tool implementations
+- Client integration patterns
+- Security best practices

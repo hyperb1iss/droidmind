@@ -1,0 +1,78 @@
+---
+description: DroidMind :: Control your Android devices with AI via Model Context Protocol
+globs: /**/*
+alwaysApply: false
+---
+# DroidMind Core Architecture
+
+## Project Essence
+DroidMind bridges AI assistants and Android devices through the Model Context Protocol (MCP).
+It enables control, debugging, and system analysis of Android devices using natural language
+through AI interfaces like Claude and ChatGPT. The server exposes ADB capabilities as MCP
+resources and tools for seamless integration.
+
+## Technology Stack
+- Python 3.13+ core implementation
+- MCP Protocol (v1.3.0+) for AI communication
+- ADB Shell for Android device interaction
+- Async I/O for non-blocking operations
+- Starlette/Uvicorn for SSE transport
+- Rich for beautiful terminal interfaces
+
+## Primary Components
+- MCP Protocol Layer: Implements Model Context Protocol server
+  - Resource handlers for device information and file access
+  - Tool implementations for device control
+  - Prompt templates for common operations
+- ADB Wrapper: Secure interface to Android Debug Bridge
+  - Command sanitization and execution
+  - Async operation support
+  - TCP/IP device connection management
+- Security Layer: Permission and authentication
+  - Command validation and injection prevention
+  - Risk level categorization for operations
+  - Explicit confirmation for dangerous operations
+- Transport Protocols:
+  - stdio for terminal/CLI usage
+  - SSE (Server-Sent Events) for network/web usage
+
+## Key Directories
+- /droidmind/: Core server implementation
+  - /server/: MCP server implementation
+  - /adb/: ADB wrapper and command handlers
+  - /resources/: MCP resource implementations
+  - /tools/: MCP tool implementations
+  - /security/: Input validation and permissions
+  - /transport/: Communication protocols (stdio, SSE)
+- /docs/: Project documentation and examples
+- /tests/: Testing framework and test cases
+- /examples/: Example integrations with MCP clients
+- /.cursor/: Cursor AI assistance configuration
+
+## Core Constraints
+- All user input must be sanitized to prevent command injection
+- High-risk operations (system changes, flashing) require explicit confirmation
+- Respect device permission model for sensitive operations
+- Maintain clear separation between UI layer and ADB command interface
+- Follow Python type hints throughout the codebase (mypy validated)
+- Maintain test coverage for all core functionality
+
+## Development Standards
+- Code formatting: Black (line length 100)
+- Import sorting: isort with Black profile
+- Linting: Ruff with strict settings
+- Type checking: MyPy with disallow_untyped_defs
+- Testing: pytest with asyncio support
+
+## Command Line Interface
+The project exposes a CLI via the 'droidmind' command with transport options:
+- stdio: Terminal-based interactive mode
+- SSE: Network server mode with web interface
+
+## Feature Categories
+- Device Management: Connect, disconnect, reboot
+- System Analysis: Properties, logs, diagnostics
+- File System: Browse, transfer, modify device files
+- App Management: Install, uninstall, start, stop
+- Debugging: Screenshots, logcat, performance data
+- UI Automation: Input simulation, UI testing
