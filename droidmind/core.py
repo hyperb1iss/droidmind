@@ -5,17 +5,16 @@ This module provides the core classes and functionality for the DroidMind
 MCP server, including context management and server lifecycle.
 """
 
+from collections.abc import AsyncGenerator
+import contextlib
 from dataclasses import dataclass
 import logging
 import tempfile
-import os
-import contextlib
-from typing import AsyncGenerator
 
 from mcp.server.fastmcp import FastMCP
 
-from droidmind.adb.wrapper import ADBWrapper
 from droidmind.adb.service import ADBService
+from droidmind.adb.wrapper import ADBWrapper
 
 logger = logging.getLogger("droidmind")
 
@@ -34,7 +33,7 @@ class DroidMindContext:
 
 # Create a lifespan function for the MCP server
 @contextlib.asynccontextmanager
-async def mcp_lifespan(server: object) -> AsyncGenerator[DroidMindContext, None]:
+async def mcp_lifespan(server: object) -> AsyncGenerator[DroidMindContext]:
     """Lifespan context manager for the MCP server.
 
     This sets up the ADB service and temporary directory for the server.
@@ -83,5 +82,3 @@ mcp = FastMCP(
 # Import tools and resources to register them with the MCP server
 # These imports must come after the mcp server creation to avoid circular imports
 
-import droidmind.tools  # noqa: E402
-import droidmind.resources  # noqa: E402

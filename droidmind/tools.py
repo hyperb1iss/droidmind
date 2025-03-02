@@ -5,15 +5,14 @@ This module provides all the tool implementations for the DroidMind MCP server,
 allowing AI assistants to interact with Android devices.
 """
 
-import contextlib
 import logging
 import os
 import re
+import tempfile
 
 from mcp.server.fastmcp import Context, Image
 
 from droidmind.adb.service import get_adb, get_temp_dir
-from droidmind.adb.wrapper import ADBWrapper
 from droidmind.core import mcp
 
 logger = logging.getLogger("droidmind")
@@ -371,71 +370,6 @@ async def install_app(
 
 
 @mcp.tool()
-async def capture_screenshot(serial: str, ctx: Context) -> Image:
-    """
-    Capture a screenshot from the device.
-
-    Args:
-        serial: Device serial number
-
-    Returns:
-        Device screenshot as an image
-    """
-    # Get ADB and temp_dir directly from the service instead of context
-    adb = await get_adb()
-    temp_dir = await get_temp_dir()
-
-    if temp_dir is None:
-        raise ValueError("Temporary directory not set")
-
-    # Check if device is connected
-    devices = await adb.get_devices()
-    device_serials = [d["serial"] for d in devices]
-
-    if serial not in device_serials:
-        raise ValueError(f"Device {serial} not connected or not found.")
-
-    try:
-        # Create a temporary file path
-        screenshot_path = os.path.join(temp_dir, f"{serial.replace(':', '_')}_screenshot.png")
-
-        # Capture the screenshot
-        ctx.info(f"Capturing screenshot from {serial}...")
-        await ctx.report_progress(0, 3)
-
-        # Take screenshot on device
-        await adb.shell(serial, "screencap -p /sdcard/screenshot.png")
-        await ctx.report_progress(1, 3)
-
-        # Pull screenshot to local machine
-        await adb.pull_file(serial, "/sdcard/screenshot.png", screenshot_path)
-        await ctx.report_progress(2, 3)
-
-        # Clean up on device
-        await adb.shell(serial, "rm /sdcard/screenshot.png")
-        await ctx.report_progress(3, 3)
-
-        # Read the image and return it
-        with open(screenshot_path, "rb") as f:
-            image_data = f.read()
-
-        ctx.info(f"Screenshot captured successfully ({len(image_data)} bytes)")
-
-        # Clean up local temp file after reading
-        with contextlib.suppress(Exception):
-            os.unlink(screenshot_path)
-
-        # Create Image object with format attribute - this is needed for tests
-        image = Image(data=image_data)
-        image.format = "png"  # Ensure format is set for test compatibility
-        return image
-
-    except Exception as e:
-        ctx.error(f"Error capturing screenshot: {e!s}")
-        raise
-
-
-@mcp.tool()
 async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
     """
     Reboot the device.
@@ -466,3 +400,75 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
 
     except Exception as e:
         return f"Error rebooting device: {e!s}"
+
+
+@mcp.tool()
+async def screenshot(serial: str, ctx: Context) -> Image:
+    """
+    Get a screenshot from a device.
+
+    Args:
+        serial: Device serial number
+
+    Returns:
+        The device screenshot as an image
+    """
+    # Handle URL-encoded serial numbers (convert %3A back to :)
+    if "%3A" in serial:
+        serial = serial.replace("%3A", ":")
+
+    # Get ADB and temp_dir
+    adb = await get_adb()
+    temp_dir = await get_temp_dir()
+
+    if temp_dir is None:
+        temp_dir = tempfile.mkdtemp(prefix="droidmind_screenshot_")
+
+    # Check if device is connected
+    devices = await adb.get_devices()
+    device_serials = [d["serial"] for d in devices]
+
+    if serial not in device_serials:
+        ctx.error(f"Screenshot requested for disconnected device: {serial}")
+        raise ValueError(f"Device {serial} not connected or not found.")
+
+    # Create a temporary file path
+    screenshot_filename = f"{serial.replace(':', '_')}_screenshot.png"
+    screenshot_path = os.path.join(temp_dir, screenshot_filename)
+
+    try:
+        ctx.info(f"Capturing screenshot from {serial}...")
+        await ctx.report_progress(0, 3)
+
+        # Take screenshot on device
+        await adb.shell(serial, "screencap -p /sdcard/screenshot.png")
+        await ctx.report_progress(1, 3)
+
+        # Pull screenshot to local machine
+        await adb.pull_file(serial, "/sdcard/screenshot.png", screenshot_path)
+        await ctx.report_progress(2, 3)
+
+        # Clean up on device
+        await adb.shell(serial, "rm /sdcard/screenshot.png")
+
+        # Read the image data
+        with open(screenshot_path, "rb") as f:
+            image_data = f.read()
+
+        ctx.info(f"Screenshot captured successfully ({len(image_data)} bytes)")
+        await ctx.report_progress(3, 3)
+
+        # Return as MCP Image object
+        return Image(data=image_data, format="png")
+    except Exception as e:
+        ctx.error(f"Error capturing screenshot from {serial}: {e}")
+
+        # Clean up any temporary files if they exist
+        if os.path.exists(screenshot_path):
+            try:
+                os.unlink(screenshot_path)
+            except Exception as cleanup_error:
+                ctx.warning(f"Failed to clean up temporary screenshot file: {cleanup_error}")
+
+        # Re-raise the exception for proper handling
+        raise
