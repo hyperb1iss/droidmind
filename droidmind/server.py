@@ -91,23 +91,17 @@ mcp = FastMCP(
 )
 
 
-# ======== Resources ========
+# ======== Tools ========
 
-@mcp.resource("device://list")
-async def list_devices() -> str:
+@mcp.tool()
+async def devicelist(ctx: Context, random_string: str = "default") -> str:
     """
     List all connected Android devices.
     
     Returns:
         A formatted list of connected devices with their basic information.
     """
-    from mcp.server.fastmcp import get_request_context
-    ctx = get_request_context()
-    return await _list_devices_impl(ctx)
-
-async def _list_devices_impl(ctx: Context) -> str:
-    """Implementation function for list_devices that can be called directly by tests."""
-    adb = ctx.lifespan_context.adb
+    adb = ctx.request_context.lifespan_context.adb
     
     devices = await adb.get_devices()
     
@@ -130,8 +124,8 @@ async def _list_devices_impl(ctx: Context) -> str:
     return result
 
 
-@mcp.resource("device://{serial}/properties")
-async def device_properties(serial: str) -> str:
+@mcp.tool()
+async def device_properties(serial: str, ctx: Context) -> str:
     """
     Get detailed properties of a specific device.
     
@@ -141,13 +135,7 @@ async def device_properties(serial: str) -> str:
     Returns:
         Formatted device properties as text
     """
-    from mcp.server.fastmcp import get_request_context
-    ctx = get_request_context()
-    return await _device_properties_impl(serial, ctx)
-
-async def _device_properties_impl(serial: str, ctx: Context) -> str:
-    """Implementation function for device_properties that can be called directly by tests."""
-    adb = ctx.lifespan_context.adb
+    adb = ctx.request_context.lifespan_context.adb
     
     # Check if device is connected
     devices = await adb.get_devices()
@@ -213,8 +201,8 @@ async def _device_properties_impl(serial: str, ctx: Context) -> str:
     return result
 
 
-@mcp.resource("logs://{serial}/logcat")
-async def device_logcat(serial: str) -> str:
+@mcp.tool()
+async def device_logcat(serial: str, ctx: Context) -> str:
     """
     Get recent logcat output from a device.
     
@@ -224,12 +212,6 @@ async def device_logcat(serial: str) -> str:
     Returns:
         Recent logcat entries
     """
-    from mcp.server.fastmcp import get_request_context
-    ctx = get_request_context()
-    return await _device_logcat_impl(serial, ctx)
-
-async def _device_logcat_impl(serial: str, ctx: Context) -> str:
-    """Implementation function for device_logcat that can be called directly by tests."""
     adb = ctx.lifespan_context.adb
     
     # Check if device is connected
@@ -252,8 +234,8 @@ async def _device_logcat_impl(serial: str, ctx: Context) -> str:
         return f"Error retrieving logcat: {str(e)}"
 
 
-@mcp.resource("fs://{serial}/list/{path}")
-async def list_directory(serial: str, path: str) -> str:
+@mcp.tool()
+async def list_directory(serial: str, path: str, ctx: Context) -> str:
     """
     List contents of a directory on the device.
     
@@ -264,10 +246,6 @@ async def list_directory(serial: str, path: str) -> str:
     Returns:
         Directory listing
     """
-    return await _list_directory_impl(serial, path)
-
-async def _list_directory_impl(serial: str, path: str, ctx: Context) -> str:
-    """Implementation function for list_directory that can be called directly by tests."""
     adb = ctx.lifespan_context.adb
     
     # Check if device is connected
@@ -294,8 +272,6 @@ async def _list_directory_impl(serial: str, path: str, ctx: Context) -> str:
     except Exception as e:
         return f"Error listing directory: {str(e)}"
 
-
-# ======== Tools ========
 
 @mcp.tool()
 async def connect_device(
@@ -658,7 +634,7 @@ def setup_sse_server(host: str, port: int, debug: bool = False):
     
     # Set up SSE transport
     sse = SseServerTransport("/messages/")
-    
+
     # Track active connections for proper cleanup
     active_connections = set()
     
@@ -677,6 +653,11 @@ def setup_sse_server(host: str, port: int, debug: bool = False):
                     streams[1],
                     mcp._mcp_server.create_initialization_options(),
                 )
+            except Exception as e:
+                # Log the full exception with traceback
+                logger.error("Error in SSE connection:", exc_info=True)
+                # Re-raise to let the framework handle it
+                raise
             finally:
                 # Remove connection from active set when done
                 if connection_id in active_connections:
