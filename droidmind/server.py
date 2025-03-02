@@ -53,7 +53,7 @@ logger = logging.getLogger("droidmind")
     default="INFO",
     help="Set the logging level",
 )
-def main(host: str, port: int, transport: str, debug: bool, log_level: str):
+def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> None:
     """
     DroidMind MCP Server - Control Android devices with AI assistants.
 
@@ -98,7 +98,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str):
     rprint(config_table)
 
     # Set up signal handlers for stdio mode
-    def handle_stdio_exit(signum, frame):
+    def handle_stdio_exit(signum: int, frame: object) -> None:
         logger.info(f"Received signal {signal.Signals(signum).name}, shutting down gracefully...")
         # Exit normally
         sys.exit(0)
@@ -120,7 +120,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str):
 
         logger.info("Press Ctrl+C to exit")
 
-        async def arun():
+        async def arun() -> None:
             async with stdio_server() as streams:
                 await mcp._mcp_server.run(
                     streams[0],

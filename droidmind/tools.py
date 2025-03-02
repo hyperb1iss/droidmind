@@ -11,6 +11,7 @@ import os
 
 from mcp.server.fastmcp import Context, Image
 
+from droidmind.adb.wrapper import ADBWrapper
 from droidmind.core import mcp
 
 logger = logging.getLogger("droidmind")
@@ -24,7 +25,7 @@ async def devicelist(ctx: Context, random_string: str = "default") -> str:
     Returns:
         A formatted list of connected devices with their basic information.
     """
-    adb = ctx.request_context.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     devices = await adb.get_devices()
 
@@ -58,7 +59,7 @@ async def device_properties(serial: str, ctx: Context) -> str:
     Returns:
         Formatted device properties as text
     """
-    adb = ctx.request_context.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -135,7 +136,7 @@ async def device_logcat(serial: str, ctx: Context) -> str:
     Returns:
         Recent logcat entries
     """
-    adb = ctx.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -169,7 +170,7 @@ async def list_directory(serial: str, path: str, ctx: Context) -> str:
     Returns:
         Directory listing
     """
-    adb = ctx.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -208,7 +209,7 @@ async def connect_device(host: str, ctx: Context, port: int = 5555) -> str:
     Returns:
         Connection result message
     """
-    adb = ctx.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     try:
         # Try to connect to the device
@@ -221,7 +222,7 @@ async def connect_device(host: str, ctx: Context, port: int = 5555) -> str:
 
         # Get basic device info
         devices = await adb.get_devices()
-        device_info = next((d for d in devices if d["serial"] == serial), {})
+        device_info: dict[str, str] = next((d for d in devices if d["serial"] == serial), {})
 
         model = device_info.get("model", "Unknown model")
         android_version = device_info.get("android_version", "Unknown version")
@@ -245,7 +246,7 @@ async def disconnect_device(serial: str, ctx: Context) -> str:
     Returns:
         Disconnection result message
     """
-    adb = ctx.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     try:
         # Try to disconnect from the device
@@ -273,7 +274,7 @@ async def shell_command(serial: str, command: str, ctx: Context) -> str:
     Returns:
         Command output
     """
-    adb = ctx.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -313,25 +314,17 @@ async def install_app(
     Returns:
         Installation result message
     """
-    adb = ctx.lifespan_context.adb
-
-    # Check if device is connected
-    devices = await adb.get_devices()
-    device_serials = [d["serial"] for d in devices]
-
-    if serial not in device_serials:
-        return f"Error: Device {serial} not connected or not found."
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
     try:
-        # Check if APK exists
+        await ctx.report_progress(0, 2)
+        ctx.info(f"Installing {apk_path} on device {serial}...")
+
+        # Check if file exists
         if not os.path.exists(apk_path):
             return f"Error: APK file not found at {apk_path}"
 
-        # Install the app
-        ctx.info(f"Installing APK: {os.path.basename(apk_path)}")
-        await ctx.report_progress(0, 2)
-
-        # Push APK to device first
+        # Push to device first (more reliable than direct install)
         device_apk_path = f"/data/local/tmp/{os.path.basename(apk_path)}"
         await adb.push_file(serial, apk_path, device_apk_path)
 
@@ -345,7 +338,7 @@ async def install_app(
 
         await ctx.report_progress(2, 2)
 
-        return result
+        return str(result)  # Ensure we return a string
 
     except Exception as e:
         return f"Error installing app: {e!s}"
@@ -362,8 +355,8 @@ async def capture_screenshot(serial: str, ctx: Context) -> Image:
     Returns:
         Device screenshot as an image
     """
-    adb = ctx.lifespan_context.adb
-    temp_dir = ctx.lifespan_context.temp_dir
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    temp_dir: str = ctx.request_context.lifespan_context.temp_dir
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -424,14 +417,10 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
     Returns:
         Reboot result message
     """
-    adb = ctx.lifespan_context.adb
+    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
 
-    # Check if device is connected
-    devices = await adb.get_devices()
-    device_serials = [d["serial"] for d in devices]
-
-    if serial not in device_serials:
-        return f"Error: Device {serial} not connected or not found."
+    await ctx.report_progress(0, 1)
+    ctx.info(f"Preparing to reboot device {serial} into {mode} mode...")
 
     valid_modes = ["normal", "recovery", "bootloader"]
     if mode not in valid_modes:
@@ -440,8 +429,9 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
     try:
         # Reboot the device
         ctx.info(f"Rebooting device {serial} into {mode} mode...")
-        return await adb.reboot_device(serial, mode)
-
+        result = await adb.reboot_device(serial, mode)
+        await ctx.report_progress(1, 1)
+        return str(result)  # Ensure we return a string
 
     except Exception as e:
         return f"Error rebooting device: {e!s}"

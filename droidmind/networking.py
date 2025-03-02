@@ -6,10 +6,19 @@ including SSE (Server-Sent Events) server setup and interface detection.
 """
 
 import asyncio
+from collections.abc import AsyncGenerator
 import logging
+import os
+import signal
 import socket
+import threading
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import HTMLResponse, JSONResponse
 
 from droidmind.utils import console
 
@@ -70,10 +79,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         debug: Whether to enable debug mode
     """
     from mcp.server.sse import SseServerTransport
-    from starlette.applications import Starlette
     from starlette.middleware import Middleware
-    from starlette.middleware.cors import CORSMiddleware
-    from starlette.responses import HTMLResponse, JSONResponse
     from starlette.routing import Mount, Route
     import uvicorn
 
@@ -81,9 +87,9 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
     sse = SseServerTransport("/messages/")
 
     # Track active connections for proper cleanup
-    active_connections = set()
+    active_connections: set[int] = set()
 
-    async def handle_sse(request):
+    async def handle_sse(request: Request) -> None:
         """Handle SSE connection."""
         async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
             # Add connection to active set
@@ -106,7 +112,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
                 if connection_id in active_connections:
                     active_connections.remove(connection_id)
 
-    async def handle_index(request):
+    async def handle_index(request: Request) -> HTMLResponse:
         """Serve the index page with server info."""
         base_url = f"{request.url.scheme}://{request.url.netloc}"
         html = f"""
@@ -240,7 +246,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         """
         return HTMLResponse(html)
 
-    async def handle_info(request):
+    async def handle_info(request: Request) -> JSONResponse:
         """Return JSON info about the server."""
         return JSONResponse(
             {
@@ -253,7 +259,8 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         )
 
     # Create Starlette app with CORS middleware and lifespan
-    async def lifespan(app):
+    async def lifespan(app: Starlette) -> AsyncGenerator:
+        """Handle application lifespan events."""
         # Setup
         yield
         # Cleanup on shutdown
@@ -325,19 +332,17 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
     server = uvicorn.Server(config)
 
     # Configure graceful shutdown
-    import os
-    import signal
-    import threading
-
     # Set up signal handlers for graceful shutdown
-    def handle_exit(signum, frame):
+    def handle_exit(signum: int, frame: Any) -> None:
+        """Handle exit signals for graceful shutdown."""
         logger.info(f"Received signal {signal.Signals(signum).name}, initiating graceful shutdown with task debug...")
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = asyncio.get_event_loop()
 
-        async def debug_tasks():
+        async def debug_tasks() -> None:
+            """Debug and log active tasks during shutdown."""
             for i in range(5):  # print active tasks for 5 seconds
                 logger.info(f"[DEBUG TASKS] Snapshot {i + 1} - Active tasks:")
                 tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
@@ -376,7 +381,8 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         logger.info("Cleaning up resources...")
 
         # Force exit if we're still hanging after 3 seconds
-        def force_exit():
+        def force_exit() -> None:
+            """Force exit if shutdown takes too long."""
             logger.warning("Server shutdown taking too long, forcing exit...")
             os._exit(0)
 

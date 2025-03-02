@@ -35,7 +35,7 @@ from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeRemainingColumn
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -174,7 +174,7 @@ def command_output(command: str, output: str) -> None:
     console.print(output)
 
 
-def progress_context(description: str = "Processing..."):
+def progress_context(description: str = "Processing...") -> Progress:
     """Context manager for showing progress during operations."""
     # Log the start of a progress operation
     logger.debug(f"Starting progress operation: {description}")
@@ -184,7 +184,8 @@ def progress_context(description: str = "Processing..."):
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
-        TaskProgressColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeRemainingColumn(),
         console=console,
     )
 

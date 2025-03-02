@@ -119,17 +119,20 @@ class ADBWrapper:
         """Connect to a USB device.
 
         Returns:
-            The device serial number or None if no device found.
-
-        Raises:
-            AdbConnectionError: If connection fails.
+            The serial number of the connected device, or None if connection failed.
         """
-        device = AdbDeviceUsb(default_transport_timeout_s=self.connection_timeout)
-
         try:
+            # Find USB devices
+            devices = await asyncio.to_thread(AdbDeviceUsb.find_all)
+            if not devices:
+                logger.warning("No USB devices found")
+                return None
+
+            device = devices[0]  # Connect to the first device found
+
             # Get USB device info first
             device_info = await asyncio.to_thread(device.get_serial_number)
-            serial = device_info
+            serial: str = device_info  # Explicit type cast to str
 
             if serial in self._devices:
                 logger.info(f"Device {serial} already connected")

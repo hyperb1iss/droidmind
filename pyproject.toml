@@ -76,10 +76,63 @@ addopts = """
 # Type checking configuration
 [tool.mypy]
 python_version = "3.13"
+# Basic type checking
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
+
+# Enhanced type checking
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+check_untyped_defs = true
+
+# Warnings as errors for critical issues
+error_summary = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+# Strict equality checking
+strict_equality = true
+
+# Import discovery
+namespace_packages = true
+explicit_package_bases = true
+
+# Error reporting
+show_error_context = true
+show_column_numbers = true
+pretty = true
+
+# Third-party modules without type stubs
+[[tool.mypy.overrides]]
+module = [
+    "adb_shell.*",
+    "mcp.*",
+    "netifaces.*",
+    "starlette.*",
+    "uvicorn.*",
+    "sse_starlette.*",
+]
+ignore_missing_imports = true
+
+# Test files can be less strict
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+
+# Core modules should be very strict
+[[tool.mypy.overrides]]
+module = ["droidmind.core.*"]
+disallow_any_generics = true
+disallow_any_explicit = true
+warn_unreachable = true
 
 # Code formatting and linting configuration
 [tool.ruff]
