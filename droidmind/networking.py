@@ -1,3 +1,5 @@
+# pylint: disable=too-many-statements
+
 """
 DroidMind Networking - Network utilities for the DroidMind MCP server.
 
@@ -7,65 +9,26 @@ including SSE (Server-Sent Events) server setup and interface detection.
 
 import asyncio
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 import logging
 import os
 import signal
-import socket
 import threading
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.sse import SseServerTransport
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
+from starlette.routing import Mount, Route
+import uvicorn
 
 from droidmind.utils import console
 
 logger = logging.getLogger("droidmind")
-
-
-def get_available_interfaces() -> list[tuple[str, str]]:
-    """
-    Get available network interfaces with their IP addresses.
-
-    Returns:
-        List of tuples of (interface_name, ip_address)
-    """
-    interfaces = []
-
-    try:
-        import netifaces
-
-        # Get all network interfaces using netifaces
-        for interface in netifaces.interfaces():
-            try:
-                # Get the IP address for this interface
-                addrs = netifaces.ifaddresses(interface)
-                if netifaces.AF_INET in addrs:
-                    for addr in addrs[netifaces.AF_INET]:
-                        ip = addr["addr"]
-                        # Skip loopback addresses unless it's the only one
-                        if not ip.startswith("127.") or interface == "lo":
-                            interfaces.append((interface, ip))
-            except (OSError, ValueError):
-                continue
-    except ImportError:
-        # Fallback method if netifaces is not available
-        try:
-            # Get hostname and IP
-            hostname = socket.gethostname()
-            ip = socket.gethostbyname(hostname)
-            if ip and not ip.startswith("127."):
-                interfaces.append(("default", ip))
-        except OSError:
-            pass
-
-    # Always include localhost
-    if not any(ip == "127.0.0.1" for _, ip in interfaces):
-        interfaces.append(("localhost", "127.0.0.1"))
-
-    return interfaces
 
 
 def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = False) -> None:
@@ -78,11 +41,6 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         mcp_server: The FastMCP server instance
         debug: Whether to enable debug mode
     """
-    from mcp.server.sse import SseServerTransport
-    from starlette.middleware import Middleware
-    from starlette.routing import Mount, Route
-    import uvicorn
-
     # Set up SSE transport
     sse = SseServerTransport("/messages/")
 
@@ -91,12 +49,15 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
 
     async def handle_sse(request: Request) -> None:
         """Handle SSE connection."""
+        # Note: Using _send is required by the SSE implementation
+        # ruff: noqa: SLF001
         async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
             # Add connection to active set
             connection_id = id(streams)
             active_connections.add(connection_id)
             try:
                 # The run method expects a transport type, not the streams directly
+                # ruff: noqa: SLF001
                 await mcp_server._mcp_server.run(
                     streams[0],
                     streams[1],
@@ -104,7 +65,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
                 )
             except Exception:
                 # Log the full exception with traceback
-                logger.error("Error in SSE connection:", exc_info=True)
+                logger.exception("Error in SSE connection")
                 # Re-raise to let the framework handle it
                 raise
             finally:
@@ -232,21 +193,23 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
 
                 <div class="info">
                     <h2>Getting Started</h2>
-                    <p>To connect an AI assistant to this server, use the SSE transport with the following connection URL:</p>
+                    <p>To connect an AI assistant to this server, use the SSE transport with the following
+                    connection URL:</p>
                     <pre>sse://{host}:{port}/sse</pre>
                     <p>You can configure Claude/ChatGPT to use this server with the Model Context Protocol.</p>
                 </div>
             </div>
 
             <footer>
-                <p>DroidMind &copy; 2023-2024 | <a href="https://github.com/hyperbliss/droidmind" target="_blank">GitHub</a></p>
+                <p>DroidMind &copy; 2023-2024 |
+                <a href="https://github.com/hyperbliss/droidmind" target="_blank">GitHub</a></p>
             </footer>
         </body>
         </html>
         """
         return HTMLResponse(html)
 
-    async def handle_info(request: Request) -> JSONResponse:
+    async def handle_info(_request: Request) -> JSONResponse:
         """Return JSON info about the server."""
         return JSONResponse(
             {
@@ -259,7 +222,8 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         )
 
     # Create Starlette app with CORS middleware and lifespan
-    async def lifespan(app: Starlette) -> AsyncGenerator:
+    @asynccontextmanager
+    async def lifespan(_app: Starlette) -> AsyncGenerator:
         """Handle application lifespan events."""
         # Setup - nothing to do here now as MCP server handles ADB setup
         yield
@@ -296,23 +260,17 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         lifespan=lifespan,
     )
 
-    # No need for this message anymore as it's redundant with our display
-    # logger.info("Server is ready! 🚀")
-
-    # Only display minimal listen address info when binding to all interfaces
-    if host == "0.0.0.0":
-        # When binding to all interfaces, show a simple list of listen addresses
-        interfaces = get_available_interfaces()
-
-        # Filter to only show non-loopback interfaces
-        listen_interfaces = [(name, ip) for name, ip in interfaces if not ip.startswith("127.")]
-
-        if listen_interfaces:
-            console.header("Listen Addresses")
-
-            # Create a simple, elegant display of just the addresses
-            for _, ip in listen_interfaces:  # Don't need name here
-                console.success(f"{ip}:{port}")
+    # Display listen address info
+    if host == "0.0.0.0":  # noqa: S104 - Intentional binding to all interfaces
+        # When binding to all interfaces, show a simple message
+        console.header("Listen Addresses")
+        console.success(f"Server listening on all interfaces at port {port}")
+        console.success(f"Connect to the server using: sse://YOUR_IP:{port}/sse")
+    else:
+        # Show the specific address we're listening on
+        console.header("Listen Address")
+        console.success(f"Server listening on {host}:{port}")
+        console.success(f"Connect to the server using: sse://{host}:{port}/sse")
 
     # Create a server instance that we can access for shutdown
     config = uvicorn.Config(app, host=host, port=port, log_level="debug" if debug else "info", log_config=None)
@@ -320,9 +278,9 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
 
     # Configure graceful shutdown
     # Set up signal handlers for graceful shutdown
-    def handle_exit(signum: int, frame: Any) -> None:
+    def handle_exit(signum: int, _frame: Any) -> None:
         """Handle exit signals for graceful shutdown."""
-        logger.info(f"Received signal {signal.Signals(signum).name}, initiating graceful shutdown with task debug...")
+        logger.info("Received signal %s, initiating graceful shutdown with task debug...", signal.Signals(signum).name)
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -331,7 +289,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         async def debug_tasks() -> None:
             """Debug and log active tasks during shutdown."""
             for i in range(5):  # print active tasks for 5 seconds
-                logger.info(f"[DEBUG TASKS] Snapshot {i + 1} - Active tasks:")
+                logger.info("[DEBUG TASKS] Snapshot %d - Active tasks:", i + 1)
                 tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
                 if not tasks:
                     logger.info("[DEBUG TASKS] No active tasks found.")
@@ -340,15 +298,17 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
                         task_name = t.get_name()
                     except AttributeError:
                         task_name = str(t)
-                    logger.info(f"Task: {task_name}, Done: {t.done()}")
+                    logger.info("Task: %s, Done: %s", task_name, t.done())
                     stack = t.get_stack(limit=3)
                     if stack:
-                        for frame in stack:
-                            logger.info(f"  at {frame.f_code.co_filename}:{frame.f_lineno}")
+                        for stack_frame in stack:
+                            logger.info("  at %s:%d", stack_frame.f_code.co_filename, stack_frame.f_lineno)
                     else:
                         logger.info("  No stack available.")
                 await asyncio.sleep(1)
 
+        # Store reference to the task and use it to prevent it from being garbage collected
+        # ruff: noqa: RUF006
         loop.create_task(debug_tasks())
         # Delay shutdown to allow debug_tasks to run for 5 seconds
         loop.call_later(5, lambda: setattr(server, "should_exit", True))
