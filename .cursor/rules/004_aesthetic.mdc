@@ -1,0 +1,58 @@
+---
+description: Aesthetic guidelines for console output
+globs: 
+alwaysApply: true
+---
+# NeonGlam Console Aesthetic 💅✨
+# Aesthetic Guidelines for DroidMind
+
+## 1. Core Visual Identity 🌈
+   - Use vibrant neon colors with a femme-forward palette
+   - Employ cyberpunk-inspired spinners and animations
+   - Create depth with bold/dim contrast and gradient effects
+   - Balance readability with expressive visual flair
+   - Incorporate subtle holographic/iridescent effects where appropriate
+
+## 2. Color Palette
+   - Primary: Cyber Magenta (#FF00FF) & Electric Cyan (#00FFFF)
+   - Success: Neon Violet (#9D00FF) & Mint Green (#39FF14)
+   - Warning: Electric Yellow (#FFE744) & Amber (#FFBF00)
+   - Error: Hot Pink (#FF69B4) & Crimson (#DC143C)
+   - Info: Cool Blue (#00BFFF) & Lavender (#E6E6FA)
+   - Accents: Holographic Silver (#F0F0F0) & Neon Peach (#FF9E80)
+
+## 3. Typography & Layout
+   - Use Unicode box-drawing chars with rounded corners where possible
+   - Apply consistent spacing with feminine proportions (1.618 golden ratio)
+   - Right-align status messages with subtle glow effects
+   - Support wide terminal chars and emoji
+   - Use thin dividers with gradient effects
+   - Employ cursive-inspired fonts where terminal supports it
+
+## 4. Device Representation
+   - Represent devices with unique identity markers
+   - Use color coding based on device type/status
+   - Create visual hierarchy with indentation and color intensity
+   - Display connection strength with gradient bars
+   - Use feminine-coded naming conventions for unnamed devices
+
+## 5. Command Interface
+   - Style command prompts with glowing cursor effect
+   - Use subtle animations for command execution
+   - Display command history with fading opacity
+   - Highlight dangerous commands with pulsing warning indicators
+   - Add subtle typing sounds if audio available
+
+## 6. Responsive Design
+   - Gracefully adapt to different terminal sizes
+   - Provide compact view for limited space
+   - Maintain visual hierarchy in all display modes
+   - Use responsive spacing that scales with terminal width
+   - Ensure accessibility with high contrast mode option
+
+## 7. Branding Elements
+   - Incorporate DroidMind logo with holographic effect
+   - Use consistent brand voice in all messages
+   - Apply signature color transitions in loading screens
+   - Create memorable visual moments for key operations
+   - Balance technical precision with playful elegance

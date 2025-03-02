@@ -292,40 +292,23 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         lifespan=lifespan,
     )
 
-    # Display server information
-    interfaces = get_available_interfaces()
+    # No need for this message anymore as it's redundant with our display
+    # logger.info("Server is ready! 🚀")
 
-    logger.info("Server is ready! 🚀")
-    console.header("Network Information")
-
+    # Only display minimal listen address info when binding to all interfaces
     if host == "0.0.0.0":
-        # When binding to all interfaces, show all non-loopback interfaces
-        for name, ip in interfaces:
-            if not ip.startswith("127."):
-                url = f"http://{ip}:{port}"
-                console.success(f"Interface {name}: {url}")
+        # When binding to all interfaces, show a simple list of listen addresses
+        interfaces = get_available_interfaces()
 
-        # Also show localhost for local connections
-        logger.info(f"Local access: http://localhost:{port}")
+        # Filter to only show non-loopback interfaces
+        listen_interfaces = [(name, ip) for name, ip in interfaces if not ip.startswith("127.")]
 
-        # Show MCP URL for AI assistants
-        console.header("MCP Connection URL")
-        logger.info("Use this URL to connect AI assistants:")
-        for name, ip in interfaces:
-            if not ip.startswith("127."):
-                mcp_url = f"sse://{ip}:{port}/sse"
-                console.success(f"MCP URL ({name}): {mcp_url}")
-        logger.info(f"Local MCP URL: sse://localhost:{port}/sse")
-    else:
-        # When binding to a specific interface, just show that one
-        url = f"http://{host}:{port}"
-        console.success(f"Server running at: {url}")
+        if listen_interfaces:
+            console.header("Listen Addresses")
 
-        # Show MCP URL for AI assistants
-        console.header("MCP Connection URL")
-        logger.info("Use this URL to connect AI assistants:")
-        mcp_url = f"sse://{host}:{port}/sse"
-        console.success(f"MCP URL: {mcp_url}")
+            # Create a simple, elegant display of just the addresses
+            for _, ip in listen_interfaces:  # Don't need name here
+                console.success(f"{ip}:{port}")
 
     # Create a server instance that we can access for shutdown
     config = uvicorn.Config(app, host=host, port=port, log_level="debug" if debug else "info")

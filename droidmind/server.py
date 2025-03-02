@@ -11,24 +11,13 @@ import signal
 import sys
 
 import click
-from rich import print as rprint
-from rich.logging import RichHandler
-from rich.markdown import Markdown
-from rich.panel import Panel
 
-# Import tools and prompts to register them
 # Import DroidMind modules
 from droidmind.core import mcp
 from droidmind.networking import setup_sse_server
 from droidmind.utils import console
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)],
-)
+# Defer logging configuration until after command line parsing
 logger = logging.getLogger("droidmind")
 
 
@@ -60,68 +49,100 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
     This server implements the Model Context Protocol (MCP) to allow AI assistants
     to control and interact with Android devices via ADB.
     """
-    # Configure logging level - debug takes precedence over log_level
-    if debug:
-        logging.getLogger("droidmind").setLevel(logging.DEBUG)
-        logging.getLogger("uvicorn.access").setLevel(logging.DEBUG)
-        logging.getLogger("uvicorn.error").setLevel(logging.DEBUG)
-        log_level = "DEBUG"  # Override log_level for display purposes
-    else:
-        logging.getLogger("droidmind").setLevel(getattr(logging, log_level))
-
-    # Display beautiful welcome message with server info
+    # Start visual elements before configuring logging
+    # Display the banner right away
     console.print_banner()
-    logger.info("Starting DroidMind MCP server...")
 
-    # Validate host
+    # Prepare server configuration info
+    config = {
+        "transport": transport.upper(),
+        "host": host,
+        "port": port,
+        "debug": debug,
+        "log_level": log_level if not debug else "DEBUG",
+    }
+
+    # Validate host before showing config
     try:
         ipaddress.ip_address(host)
     except ValueError:
         if host != "localhost":
-            logger.warning(f"Invalid host address: {host}. Using localhost instead.")
-            host = "127.0.0.1"
+            config["host"] = "127.0.0.1"
+            config["host_note"] = f"(Changed from {host} - invalid address)"
 
-    # Display server configuration
-    config_table = Panel(
-        Markdown(f"""
-        # Server Configuration
+    # Display beautiful configuration with NeonGlam aesthetic - use the new unified function
+    console.display_system_info(config)
 
-        * **Transport**: {transport.upper()}
-        * **Host**: {host}
-        * **Port**: {port}
-        * **Debug Mode**: {"Enabled" if debug else "Disabled"}
-        * **Log Level**: {log_level}
-        """),
-        title="[cyan]DroidMind Configuration[/cyan]",
-        border_style="cyan",
+    # NOW configure logging - after visual elements are displayed
+    # Create and configure the custom NeonGlam handler
+    handler = console.create_custom_handler()
+
+    # Configure basic logging with our custom handler
+    logging.basicConfig(
+        level=getattr(logging, config["log_level"]),
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[handler],
+        force=True,  # Make sure we override any existing configuration
     )
-    rprint(config_table)
 
-    # Set up signal handlers for stdio mode
-    def handle_stdio_exit(signum: int, frame: object) -> None:
+    # Configure loggers
+    if debug:
+        logging.getLogger("droidmind").setLevel(logging.DEBUG)
+        logging.getLogger("uvicorn.access").setLevel(logging.DEBUG)
+        logging.getLogger("uvicorn.error").setLevel(logging.DEBUG)
+    else:
+        logging.getLogger("droidmind").setLevel(getattr(logging, log_level))
+
+    # Properly configure Uvicorn loggers to use our handler and filter redundant messages
+    for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
+        uvicorn_logger = logging.getLogger(logger_name)
+        uvicorn_logger.handlers = [handler]
+        uvicorn_logger.propagate = False
+
+        # Apply a filter to the Uvicorn logger to prevent duplicate startup messages
+        class UvicornFilter(logging.Filter):
+            def filter(self, record):
+                # Skip redundant Uvicorn messages we don't need
+                skip_messages = [
+                    "Started server process",
+                    "Waiting for application startup",
+                    "Application startup complete",
+                    "Uvicorn running on http://",
+                    "Press CTRL+C",
+                ]
+                return not any(msg in record.getMessage() for msg in skip_messages)
+
+        # Add the filter to each handler
+        for handler in uvicorn_logger.handlers:
+            handler.addFilter(UvicornFilter())
+
+    # Set up signal handlers
+    def handle_exit(signum: int, frame: object) -> None:
         logger.info(f"Received signal {signal.Signals(signum).name}, shutting down gracefully...")
-        # Exit normally
         sys.exit(0)
 
     # Register signal handlers
-    signal.signal(signal.SIGINT, handle_stdio_exit)
-    signal.signal(signal.SIGTERM, handle_stdio_exit)
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
 
-    # Start server based on transport mode
+    # Start appropriate server based on transport mode
     if transport == "sse":
-        # Start SSE server
-        logger.info(f"Starting DroidMind with SSE transport on {host}:{port}")
-        setup_sse_server(host, port, mcp, debug)
+        # Launch the SSE server - no need to display connection info again
+        setup_sse_server(config["host"], config["port"], mcp, debug)
     else:
         # Use stdio transport for terminal use
-        logger.info("Starting DroidMind with stdio transport")
+        logger.info("Using stdio transport for terminal interaction")
+
+        # Launch the stdio server
         import anyio
         from mcp.server.stdio import stdio_server
 
-        logger.info("Press Ctrl+C to exit")
-
         async def arun() -> None:
             async with stdio_server() as streams:
+                # Log that we're ready to accept commands
+                console.startup_complete()
+
                 await mcp._mcp_server.run(
                     streams[0],
                     streams[1],

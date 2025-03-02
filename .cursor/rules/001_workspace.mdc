@@ -1,7 +1,7 @@
 ---
 description: DroidMind :: Control your Android devices with AI via Model Context Protocol
-globs: /**/*
-alwaysApply: false
+globs: 
+alwaysApply: true
 ---
 # DroidMind Core Architecture
 
@@ -13,6 +13,8 @@ resources and tools for seamless integration.
 
 ## Technology Stack
 - Python 3.13+ core implementation
+- UV for project and package management
+- Ruff, MyPy, and Pylint for code style and analysis
 - MCP Protocol (v1.3.0+) for AI communication
 - ADB Shell for Android device interaction
 - Async I/O for non-blocking operations

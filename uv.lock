@@ -203,6 +203,7 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "netifaces" },
     { name = "rich" },
+    { name = "rich-gradient" },
     { name = "sse-starlette" },
     { name = "starlette" },
     { name = "uvicorn" },
@@ -229,6 +230,7 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.3.0" },
     { name = "netifaces", specifier = ">=0.11.0" },
     { name = "rich", specifier = ">=13.9.4" },
+    { name = "rich-gradient", specifier = ">=0.1.7" },
     { name = "sse-starlette", specifier = ">=2.2.1" },
     { name = "starlette", specifier = ">=0.46.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
@@ -495,6 +497,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pydantic-extra-types"
+version = "2.10.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/23/ed/69f3f3de12c02ebd58b2f66ffb73d0f5a1b10b322227897499753cebe818/pydantic_extra_types-2.10.2.tar.gz", hash = "sha256:934d59ab7a02ff788759c3a97bc896f5cfdc91e62e4f88ea4669067a73f14b98", size = 86893 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/da/86bc9addde8a24348ac15f8f7dcb853f78e9573c7667800dd9bc60558678/pydantic_extra_types-2.10.2-py3-none-any.whl", hash = "sha256:9eccd55a2b7935cea25f0a67f6ff763d55d80c41d86b887d88915412ccf5b7fa", size = 35473 },
+]
+
+[[package]]
 name = "pydantic-settings"
 version = "2.8.1"
 source = { registry = "https://pypi.org/simple" }
@@ -594,6 +609,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ab/3a/0316b28d0761c6734d6bc14e770d85506c986c85ffb239e688eeaab2c2bc/rich-13.9.4.tar.gz", hash = "sha256:439594978a49a09530cff7ebc4b5c7103ef57baf48d5ea3184f21d9a2befa098", size = 223149 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/19/71/39c7c0d87f8d4e6c020a393182060eaefeeae6c01dab6a84ec346f2567df/rich-13.9.4-py3-none-any.whl", hash = "sha256:6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90", size = 242424 },
+]
+
+[[package]]
+name = "rich-gradient"
+version = "0.1.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pydantic-extra-types" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5d/99/f68a368c4dcd354bf7922fad2a9249ebdd54da51f01e5fac7b2a84e0d01e/rich_gradient-0.1.7.tar.gz", hash = "sha256:6827488c55882f42797c871aaf118ea036909096b81780cbc4a2e72a0d1006b5", size = 929714 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/13/6f3e13c588a6b7f1929a86b3a104b19297878e739c0bcd08046a5d7616b4/rich_gradient-0.1.7-py3-none-any.whl", hash = "sha256:26354928a153544ee9af6bf36478b23c5f5f73da1c22fc2af98905057798387d", size = 32679 },
 ]
 
 [[package]]
