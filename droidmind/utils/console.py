@@ -263,7 +263,7 @@ def device_table(devices: list[dict[str, str]]) -> None:
         return
 
     table = Table(title="Connected Android Devices", box=ROUNDED)
-    table.border_style = styles["panel_border"].color
+    table.border_style = Style(color=styles["panel_border"].color)
     table.title_style = styles["panel_title"]
 
     table.add_column("Serial", style=styles["device"])
@@ -292,7 +292,7 @@ def property_table(properties: dict[str, str], title: str = "Device Properties")
         return
 
     table = Table(title=title, box=ROUNDED)
-    table.border_style = styles["panel_border"].color
+    table.border_style = Style(color=styles["panel_border"].color)
     table.title_style = styles["panel_title"]
 
     table.add_column("Property", style=styles["property"])

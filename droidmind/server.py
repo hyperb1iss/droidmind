@@ -17,7 +17,7 @@ import click
 from mcp.server.stdio import stdio_server
 
 # First-party imports (DroidMind modules)
-from droidmind.core import mcp
+from droidmind.mcp_instance import mcp
 from droidmind.networking import setup_sse_server
 from droidmind.utils import console
 
@@ -121,10 +121,12 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
                 # Log that we're ready to accept commands
                 console.startup_complete()
 
-                # Use the public FastMCP run method
-                await mcp.run(
+                # Use the MCP server run method with correct arguments
+                # The streams object is a tuple of (read_stream, write_stream)
+                await mcp._mcp_server.run(
                     streams[0],
                     streams[1],
+                    mcp._mcp_server.create_initialization_options(),
                 )
 
         anyio.run(arun)

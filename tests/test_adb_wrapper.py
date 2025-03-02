@@ -96,7 +96,7 @@ class TestADBWrapperAsync:
         # Verify the result - the actual implementation returns just the serial
         assert result == "192.168.1.100:5555"
         wrapper._run_adb_command.assert_called_once_with(
-            ["connect", "192.168.1.100:5555"], timeout=wrapper.connection_timeout
+            ["connect", "192.168.1.100:5555"], timeout_seconds=wrapper.connection_timeout
         )
 
     async def test_connect_device_tcp_error(self, wrapper):
@@ -111,7 +111,7 @@ class TestADBWrapperAsync:
         # Verify the error message
         assert "Failed to connect" in str(excinfo.value)
         wrapper._run_adb_command.assert_called_once_with(
-            ["connect", "192.168.1.100:5555"], timeout=wrapper.connection_timeout
+            ["connect", "192.168.1.100:5555"], timeout_seconds=wrapper.connection_timeout
         )
 
     async def test_disconnect_device(self, wrapper):

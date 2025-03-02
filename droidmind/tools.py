@@ -1,8 +1,13 @@
 """
-DroidMind Tools - Tool implementations for the DroidMind MCP server.
+DroidMind Tools - MCP tools for controlling Android devices.
 
-This module provides all the tool implementations for the DroidMind MCP server,
-allowing AI assistants to interact with Android devices.
+This module provides MCP tools for controlling Android devices via ADB.
+
+Note: Tools in this module catch broad exceptions (Exception) intentionally.
+Since these functions are exposed as MCP tools to external clients,
+we want to catch all possible errors and return them as formatted messages
+rather than letting exceptions propagate and potentially crash the server.
+This is a deliberate design choice for better user experience and stability.
 """
 
 import logging
@@ -10,16 +15,17 @@ import os
 import re
 import tempfile
 
+import aiofiles
 from mcp.server.fastmcp import Context, Image
 
 from droidmind.adb.service import get_adb, get_temp_dir
-from droidmind.core import mcp
+from droidmind.mcp_instance import mcp
 
 logger = logging.getLogger("droidmind")
 
 
 @mcp.tool()
-async def devicelist(ctx: Context, random_string: str = "default") -> str:
+async def devicelist(ctx: Context) -> str:
     """
     List all connected Android devices.
 
@@ -29,25 +35,30 @@ async def devicelist(ctx: Context, random_string: str = "default") -> str:
     # Get ADB directly from the service instead of context
     adb = await get_adb()
 
-    devices = await adb.get_devices()
+    try:
+        # Get the list of devices
+        devices = await adb.get_devices()
 
-    if not devices:
-        return "No devices connected.\n\nUse the `connect_device` tool to connect to a device."
+        if not devices:
+            return "No devices connected. Use the connect_device tool to connect to a device."
 
-    # Format the output
-    result = f"# Connected Android Devices ({len(devices)})\n\n"
+        # Format the device information
+        result = f"# Connected Android Devices ({len(devices)})\n\n"
 
-    for i, device in enumerate(devices, 1):
-        serial = device.get("serial", "Unknown")
-        model = device.get("model", "Unknown model")
-        android_version = device.get("android_version", "Unknown version")
+        for i, device in enumerate(devices, 1):
+            serial = device.get("serial", "Unknown")
+            model = device.get("model", "Unknown model")
+            android_version = device.get("android_version", "Unknown version")
 
-        result += f"## Device {i}: {model}\n"
-        result += f"- **Serial**: `{serial}`\n"
-        result += "- **Status**: Connected\n"
-        result += f"- **Android Version**: {android_version}\n\n"
+            result += f"""## Device {i}: {model}
+- **Serial**: `{serial}`
+- **Android Version**: {android_version}
+"""
 
-    return result
+        return result
+
+    except Exception as e:
+        return f"Error listing devices: {e!s}"
 
 
 @mcp.tool()
@@ -64,67 +75,39 @@ async def device_properties(serial: str, ctx: Context) -> str:
     # Get ADB directly from the service instead of context
     adb = await get_adb()
 
-    # Check if device is connected
-    devices = await adb.get_devices()
-    device_serials = [d["serial"] for d in devices]
-
-    if serial not in device_serials:
-        return f"Error: Device {serial} not connected or not found."
-
-    # Get all properties
     try:
         properties = await adb.get_device_properties(serial)
     except Exception as e:
         return f"Error retrieving device properties: {e!s}"
 
-    # Extract key information
+    if not properties:
+        return f"No properties found for device {serial}."
+
+    # Format the properties
+    result = f"# Device Properties for {serial}\n\n"
+
+    # Add formatted sections for important properties
+    model = properties.get("ro.product.model", "Unknown")
+    brand = properties.get("ro.product.brand", "Unknown")
     android_version = properties.get("ro.build.version.release", "Unknown")
-    sdk_version = properties.get("ro.build.version.sdk", "Unknown")
-    device_model = properties.get("ro.product.model", "Unknown")
-    device_brand = properties.get("ro.product.brand", "Unknown")
-    device_name = properties.get("ro.product.name", "Unknown")
+    sdk_level = properties.get("ro.build.version.sdk", "Unknown")
+    build_number = properties.get("ro.build.display.id", "Unknown")
 
-    # Format output in a structured way
-    result = f"""
-# Device Properties for {serial}
+    result += f"**Model**: {model}\n"
+    result += f"**Brand**: {brand}\n"
+    result += f"**Android Version**: {android_version}\n"
+    result += f"**SDK Level**: {sdk_level}\n"
+    result += f"**Build Number**: {build_number}\n\n"
 
-## Basic Information
-- **Model**: {device_model}
-- **Brand**: {device_brand}
-- **Name**: {device_name}
-- **Android Version**: {android_version}
-- **SDK Level**: {sdk_version}
+    # Add all properties in a code block
+    result += "## All Properties\n\n```properties\n"
 
-## Build Details
-- **Build Number**: {properties.get("ro.build.display.id", "Unknown")}
-- **Build Type**: {properties.get("ro.build.type", "Unknown")}
-- **Build Time**: {properties.get("ro.build.date", "Unknown")}
+    # Sort properties for consistent output
+    for key in sorted(properties.keys()):
+        value = properties[key]
+        result += f"{key}={value}\n"
 
-## Hardware
-- **Chipset**: {properties.get("ro.hardware", "Unknown")}
-- **Architecture**: {properties.get("ro.product.cpu.abi", "Unknown")}
-- **Screen Density**: {properties.get("ro.sf.lcd_density", "Unknown")}
-- **RAM**: {properties.get("ro.product.ram", "Unknown")}
-"""
-
-    # Include a selection of other interesting properties
-    interesting_props = [
-        "ro.product.cpu.abilist",
-        "ro.build.fingerprint",
-        "ro.build.characteristics",
-        "ro.build.tags",
-        "ro.product.manufacturer",
-        "ro.product.locale",
-        "ro.config.bluetooth_max_connected",
-        "ro.crypto.state",
-        "ro.boot.hardware.revision",
-    ]
-
-    result += "\n## Other Properties\n"
-    for prop in interesting_props:
-        if prop in properties:
-            result += f"- **{prop}**: {properties[prop]}\n"
-
+    result += "```"
     return result
 
 
@@ -142,19 +125,12 @@ async def device_logcat(serial: str, ctx: Context) -> str:
     # Get ADB directly from the service instead of context
     adb = await get_adb()
 
-    # Check if device is connected
-    devices = await adb.get_devices()
-    device_serials = [d["serial"] for d in devices]
-
-    if serial not in device_serials:
-        return f"Error: Device {serial} not connected or not found."
-
     try:
-        # Get recent logs (limited to last 200 lines for performance)
+        # Get the logcat output (limited to last 200 lines for performance)
         logcat = await adb.shell(serial, "logcat -d -v time -T 200")
 
-        if not logcat.strip():
-            return "No logcat entries found."
+        if not logcat:
+            return f"No logcat output available for device {serial}."
 
         return f"# Logcat for device {serial}\n\n```\n{logcat}\n```"
 
@@ -177,24 +153,12 @@ async def list_directory(serial: str, path: str, ctx: Context) -> str:
     # Get ADB directly from the service instead of context
     adb = await get_adb()
 
-    # Check if device is connected
-    devices = await adb.get_devices()
-    device_serials = [d["serial"] for d in devices]
-
-    if serial not in device_serials:
-        return f"Error: Device {serial} not connected or not found."
-
     try:
-        # Sanitize path
-        path = path.replace("//", "/")
-        if not path.startswith("/"):
-            path = f"/{path}"
-
-        # List directory contents
+        # Run the ls command
         output = await adb.shell(serial, f"ls -la {path}")
 
-        if "No such file or directory" in output:
-            return f"Error: Path {path} does not exist on device {serial}."
+        if not output or "No such file or directory" in output:
+            return f"Directory {path} not found on device {serial}."
 
         return f"# Directory listing for {path} on device {serial}\n\n```\n{output}\n```"
 
@@ -228,9 +192,9 @@ async def connect_device(ctx: Context, ip_address: str, port: int = 5555) -> str
 
     try:
         # Attempt to connect to the device
-        result = await adb.connect_device(f"{ip_address}:{port}")
+        result = await adb.connect_device_tcp(ip_address, port)
 
-        if "connected" in result.lower():
+        if isinstance(result, str) and ":" in result:
             # Get device info for a more helpful response
             devices = await adb.get_devices()
             for device in devices:
@@ -249,11 +213,10 @@ The device is now available for commands and operations.
 
             # If we couldn't get detailed device info
             return f"✅ Successfully connected to device at {ip_address}:{port}"
-        else:
-            return f"❌ Failed to connect to device at {ip_address}:{port}: {result}"
+        return f"❌ Failed to connect to device at {ip_address}:{port}: {result}"
 
     except Exception as e:
-        logger.exception(f"Error connecting to device: {e}")
+        logger.exception("Error connecting to device: %s", e)
         return f"❌ Error connecting to device at {ip_address}:{port}: {e!s}"
 
 
@@ -273,13 +236,12 @@ async def disconnect_device(serial: str, ctx: Context) -> str:
 
     try:
         # Try to disconnect from the device
-        ctx.info(f"Disconnecting from device {serial}...")
+        await ctx.info(f"Disconnecting from device {serial}...")
         success = await adb.disconnect_device(serial)
 
         if success:
             return f"Successfully disconnected from device {serial}"
-        else:
-            return f"Device {serial} was not connected"
+        return f"Device {serial} was not connected"
 
     except Exception as e:
         return f"Error disconnecting from device: {e!s}"
@@ -309,7 +271,7 @@ async def shell_command(serial: str, command: str, ctx: Context) -> str:
 
     try:
         # Run the command
-        ctx.info(f"Running command on {serial}: {command}")
+        await ctx.info(f"Running command on {serial}: {command}")
         output = await adb.shell(serial, command)
 
         return f"Command output from {serial}:\n\n```\n{output}\n```"
@@ -343,7 +305,7 @@ async def install_app(
 
     try:
         await ctx.report_progress(0, 2)
-        ctx.info(f"Installing {apk_path} on device {serial}...")
+        await ctx.info(f"Installing {apk_path} on device {serial}...")
 
         # Check if file exists
         if not os.path.exists(apk_path):
@@ -385,7 +347,7 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
     adb = await get_adb()
 
     await ctx.report_progress(0, 1)
-    ctx.info(f"Preparing to reboot device {serial} into {mode} mode...")
+    await ctx.info(f"Preparing to reboot device {serial} into {mode} mode...")
 
     valid_modes = ["normal", "recovery", "bootloader"]
     if mode not in valid_modes:
@@ -393,7 +355,7 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
 
     try:
         # Reboot the device
-        ctx.info(f"Rebooting device {serial} into {mode} mode...")
+        await ctx.info(f"Rebooting device {serial} into {mode} mode...")
         result = await adb.reboot_device(serial, mode)
         await ctx.report_progress(1, 1)
         return str(result)  # Ensure we return a string
@@ -429,7 +391,7 @@ async def screenshot(serial: str, ctx: Context) -> Image:
     device_serials = [d["serial"] for d in devices]
 
     if serial not in device_serials:
-        ctx.error(f"Screenshot requested for disconnected device: {serial}")
+        await ctx.error(f"Screenshot requested for disconnected device: {serial}")
         raise ValueError(f"Device {serial} not connected or not found.")
 
     # Create a temporary file path
@@ -437,7 +399,7 @@ async def screenshot(serial: str, ctx: Context) -> Image:
     screenshot_path = os.path.join(temp_dir, screenshot_filename)
 
     try:
-        ctx.info(f"Capturing screenshot from {serial}...")
+        await ctx.info(f"Capturing screenshot from {serial}...")
         await ctx.report_progress(0, 3)
 
         # Take screenshot on device
@@ -451,24 +413,24 @@ async def screenshot(serial: str, ctx: Context) -> Image:
         # Clean up on device
         await adb.shell(serial, "rm /sdcard/screenshot.png")
 
-        # Read the image data
-        with open(screenshot_path, "rb") as f:
-            image_data = f.read()
+        # Read the image data using aiofiles for async file operations
+        async with aiofiles.open(screenshot_path, "rb") as f:
+            image_data = await f.read()
 
-        ctx.info(f"Screenshot captured successfully ({len(image_data)} bytes)")
+        await ctx.info(f"Screenshot captured successfully ({len(image_data)} bytes)")
         await ctx.report_progress(3, 3)
 
         # Return as MCP Image object
         return Image(data=image_data, format="png")
     except Exception as e:
-        ctx.error(f"Error capturing screenshot from {serial}: {e}")
+        await ctx.error(f"Error capturing screenshot from {serial}: {e}")
 
         # Clean up any temporary files if they exist
         if os.path.exists(screenshot_path):
             try:
                 os.unlink(screenshot_path)
             except Exception as cleanup_error:
-                ctx.warning(f"Failed to clean up temporary screenshot file: {cleanup_error}")
+                await ctx.warning(f"Failed to clean up temporary screenshot file: {cleanup_error}")
 
         # Re-raise the exception for proper handling
         raise

@@ -30,6 +30,8 @@ dependencies = [
     "starlette>=0.46.0",
     "uvicorn>=0.34.0",
     "rich-gradient>=0.1.7",
+    # Async file operations
+    "aiofiles>=23.2.1",
 ]
 
 [dependency-groups]
@@ -38,11 +40,11 @@ dev = [
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.3",
     "pytest-cov>=6.0.0",
-
     # Linting and type checking
     "mypy>=1.0.0",
     "pylint>=3.0.0",
     "ruff>=0.1.0",
+    "types-aiofiles>=24.1.0.20241221",
 ]
 sse = ["uvicorn>=0.27.0", "starlette>=0.46.0"]
 
@@ -138,7 +140,7 @@ warn_unreachable = true
 line-length = 120
 target-version = "py313"
 src = ["droidmind", "tests"]
-extend-exclude = [".venv"]
+extend-exclude = [".venv", "docs"]
 
 [tool.ruff.lint]
 # Rules to enable
@@ -234,6 +236,12 @@ section-order = [
 # Ignore unused imports in __init__ files
 "__init__.py" = ["F401", "E402"]
 
+# Allow catching blind exceptions in tools.py and unused ctx arguments
+"droidmind/tools.py" = ["BLE001", "ARG001"]
+
+# Allow accessing private members in server.py for MCP server access
+"droidmind/server.py" = ["SLF001"]
+
 # More relaxed rules for tests
 "tests/**/*.py" = [
     "ARG001",  # Unused function arguments (common for fixtures)
@@ -299,6 +307,8 @@ disable = [
     "redefined-outer-name",
     "unused-argument",
     "unused-variable",
+    "wrong-import-position",
+    "import-outside-toplevel",
     "fixme",
 
     # Additional suppressions for practicality

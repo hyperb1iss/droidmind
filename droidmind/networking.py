@@ -223,7 +223,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
 
     # Create Starlette app with CORS middleware and lifespan
     @asynccontextmanager
-    async def lifespan(_app: Starlette) -> AsyncGenerator:
+    async def lifespan(_app: Starlette) -> AsyncGenerator:  # type: ignore
         """Handle application lifespan events."""
         # Setup - nothing to do here now as MCP server handles ADB setup
         yield

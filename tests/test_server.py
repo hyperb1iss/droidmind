@@ -24,8 +24,9 @@ def mock_context():
     context = MagicMock(spec=Context)
 
     # Make methods that are awaited return awaitable objects
-    context.info = MagicMock()  # This is just called, not awaited
-    context.error = MagicMock()  # This is just called, not awaited
+    context.info = AsyncMock()  # This is awaited in some functions
+    context.error = AsyncMock()  # This is awaited in some functions
+    context.warning = AsyncMock()  # This is awaited in some functions
     context.report_progress = AsyncMock()  # This is awaited
 
     return context
@@ -121,62 +122,61 @@ async def test_device_properties(mock_get_adb, mock_context, mock_adb):
 @pytest.mark.asyncio
 @patch("droidmind.tools.get_adb")
 async def test_device_properties_not_found(mock_get_adb, mock_context, mock_adb):
-    """Test the device_properties tool with a device that doesn't exist."""
-    # Set up mock devices
-    mock_devices = [
-        {"serial": "device1", "model": "Pixel 4", "android_version": "11"},
-    ]
-    mock_adb.get_devices = AsyncMock(return_value=mock_devices)
+    """Test the device_properties tool with a non-existent device."""
+    # Set up empty device list
+    mock_adb.get_devices = AsyncMock(return_value=[])
+    # Return empty dict for properties
+    mock_adb.get_device_properties = AsyncMock(return_value={})
     mock_get_adb.return_value = mock_adb
 
-    # Call the tool with correct parameter order
+    # Call the tool
     result = await device_properties(ctx=mock_context, serial="nonexistent")
 
     # Verify the result
-    assert "Error: Device nonexistent not connected or not found" in result
+    assert "No properties found for device nonexistent" in result
 
 
 @pytest.mark.asyncio
 @patch("droidmind.tools.get_adb")
 async def test_connect_device(mock_get_adb, mock_context, mock_adb):
     """Test the connect_device tool."""
-    # Set up mock connection
-    mock_adb.connect_device = AsyncMock(return_value="connected to 192.168.1.100:5555")
-
-    # Set up mock device info
+    # Set up mock devices
     mock_devices = [
         {"serial": "192.168.1.100:5555", "model": "Pixel 4", "android_version": "11"},
     ]
+
+    # Mock the connect_device_tcp method to return a successful result
+    mock_adb.connect_device_tcp = AsyncMock(return_value="192.168.1.100:5555")
+
+    # Mock get_devices to return the connected device
     mock_adb.get_devices = AsyncMock(return_value=mock_devices)
+
     mock_get_adb.return_value = mock_adb
 
     # Call the tool
-    result = await connect_device(ctx=mock_context, ip_address="192.168.1.100")
+    result = await connect_device(ctx=mock_context, ip_address="192.168.1.100", port=5555)
 
     # Verify the result
     assert "Device Connected Successfully" in result
-    assert "192.168.1.100" in result
+    assert "Pixel 4" in result
 
 
 @pytest.mark.asyncio
 @patch("droidmind.tools.get_adb")
 async def test_disconnect_device(mock_get_adb, mock_context, mock_adb):
     """Test the disconnect_device tool."""
-    # Set up mock devices to make the device appear connected
-    mock_devices = [
-        {"serial": "device1", "model": "Pixel 4", "android_version": "11"},
-    ]
-    mock_adb.get_devices = AsyncMock(return_value=mock_devices)
-
-    # Set up mock disconnection
+    # Set up mock disconnect
     mock_adb.disconnect_device = AsyncMock(return_value=True)
     mock_get_adb.return_value = mock_adb
 
-    # Call the tool with named parameters
+    # Call the tool
     result = await disconnect_device(ctx=mock_context, serial="device1")
 
-    # Verify the result - adjust based on your new output format
-    assert "device1" in result
+    # Verify the result
+    assert "Successfully disconnected from device device1" in result
+
+    # Verify the mock was called
+    mock_adb.disconnect_device.assert_called_once_with("device1")
 
 
 @pytest.mark.asyncio
@@ -193,64 +193,73 @@ async def test_shell_command(mock_get_adb, mock_context, mock_adb):
     mock_adb.shell = AsyncMock(return_value="command output")
     mock_get_adb.return_value = mock_adb
 
-    # Call the tool with named parameters
-    result = await shell_command(ctx=mock_context, serial="device1", command="ls -la")
+    # Call the tool
+    result = await shell_command(ctx=mock_context, serial="device1", command="ls")
 
-    # Verify the result - adjust based on your new output format
+    # Verify the result
     assert "command output" in result
+
+    # Verify the mock was called
+    mock_adb.shell.assert_called_once_with("device1", "ls")
 
 
 @pytest.mark.asyncio
 @patch("droidmind.tools.get_adb")
 @patch("droidmind.tools.get_temp_dir")
-async def test_capture_screenshot(mock_get_temp_dir, mock_get_adb, mock_context, mock_adb):
-    """Test the screenshot tool."""
+@patch("droidmind.tools.aiofiles.open")
+async def test_capture_screenshot(mock_aiofiles_open, mock_get_temp_dir, mock_get_adb, mock_context, mock_adb):
+    """Test the capture_screenshot tool."""
     # Set up mock devices
     mock_devices = [
         {"serial": "device1", "model": "Pixel 4", "android_version": "11"},
     ]
     mock_adb.get_devices = AsyncMock(return_value=mock_devices)
 
-    # Set up temp dir
-    temp_dir = tempfile.mkdtemp(prefix="droidmind_test_")
-    mock_get_temp_dir.return_value = temp_dir
+    # Set up mock shell commands
+    mock_adb.shell = AsyncMock(return_value="")
+    mock_adb.pull_file = AsyncMock(return_value="")
 
-    # Set up mock screenshot capture
-    mock_adb.shell = AsyncMock()
-    mock_adb.pull_file = AsyncMock()
+    # Set up mock temp dir - use tempfile.gettempdir() for security
+    mock_get_temp_dir.return_value = tempfile.gettempdir()
+
+    # Set up mock file read - properly mock the async context manager
+    mock_file = AsyncMock()
+    mock_file.read = AsyncMock(return_value=b"fake image data")
+
+    # Create a context manager that returns the mock file
+    class AsyncContextManagerMock:
+        async def __aenter__(self):
+            return mock_file
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    # Make the mock return our async context manager
+    mock_aiofiles_open.return_value = AsyncContextManagerMock()
+
     mock_get_adb.return_value = mock_adb
 
-    # Mock file operations
-    with patch("builtins.open", create=True) as mock_open, patch("os.unlink"):
-        mock_file = mock_open.return_value.__enter__.return_value
-        mock_file.read.return_value = b"mock image data"
+    # Call the tool
+    result = await capture_screenshot(ctx=mock_context, serial="device1")
 
-        # Call the tool with named parameters
-        result = await capture_screenshot(ctx=mock_context, serial="device1")
-
-        # Verify the result
-        assert isinstance(result, Image)
-        assert result.data == b"mock image data"
-        # The Image class doesn't have a format attribute in the actual implementation
-        # So we don't check for it
+    # Verify the result is an Image object
+    assert isinstance(result, Image)
+    assert result.data == b"fake image data"
 
 
 @pytest.mark.asyncio
 @patch("droidmind.tools.get_adb")
 async def test_reboot_device(mock_get_adb, mock_context, mock_adb):
     """Test the reboot_device tool."""
-    # Set up mock devices
-    mock_devices = [
-        {"serial": "device1", "model": "Pixel 4", "android_version": "11"},
-    ]
-    mock_adb.get_devices = AsyncMock(return_value=mock_devices)
-
     # Set up mock reboot
-    mock_adb.reboot_device = AsyncMock(return_value="Device device1 rebooting into normal mode")
+    mock_adb.reboot_device = AsyncMock(return_value="Rebooting device1")
     mock_get_adb.return_value = mock_adb
 
-    # Call the tool with named parameters
+    # Call the tool
     result = await reboot_device(ctx=mock_context, serial="device1")
 
-    # Verify the result - adjust based on your new output format
-    assert "device1" in result
+    # Verify the result
+    assert "Rebooting device1" in result
+
+    # Verify the mock was called
+    mock_adb.reboot_device.assert_called_once_with("device1", "normal")
