@@ -10,36 +10,44 @@ keywords = ["mcp", "android", "ai", "llm", "claude"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
+# Dependencies organized by category
 dependencies = [
+    # Core MCP protocol
     "mcp[cli]>=1.3.0",
+
+    # Android device communication
     "adb-shell[async]>=0.4.4",
+
+    # UI and display
     "rich>=13.9.4",
+
+    # Networking and HTTP
     "httpx>=0.28.1",
-    "sse-starlette>=2.2.1",
-    "uvicorn>=0.34.0",
-    "starlette>=0.46.0",
     "netifaces>=0.11.0",
+
+    # Server components
+    "sse-starlette>=2.2.1",
+    "starlette>=0.46.0",
+    "uvicorn>=0.34.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
+    # Testing
     "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.3",
     "pytest-cov>=6.0.0",
+
+    # Linting and type checking
     "mypy>=1.0.0",
+    "pylint>=3.0.0",
     "ruff>=0.1.0",
 ]
-sse = [
-    "uvicorn>=0.27.0",
-    "starlette>=0.46.0",
-]
+sse = ["uvicorn>=0.27.0", "starlette>=0.46.0"]
 
 [project.urls]
 Homepage = "https://github.com/hyperbliss/droidmind"
@@ -56,10 +64,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["droidmind"]
 
+# Testing configuration
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
+addopts = """
+    -v
+    --tb=short
+"""
 
+# Type checking configuration
 [tool.mypy]
 python_version = "3.13"
 warn_return_any = true
@@ -67,12 +81,195 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
+# Code formatting and linting configuration
 [tool.ruff]
-line-length = 100
+# General settings
+line-length = 120
 target-version = "py313"
-select = ["E", "F", "B", "I", "W"]
+src = ["droidmind", "tests"]
+extend-exclude = [".venv"]
 
-[dependency-groups]
-dev = [
-    "pytest-asyncio>=0.25.3",
+[tool.ruff.lint]
+# Rules to enable
+select = [
+    # Core rules
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C",   # flake8-comprehensions
+    "B",   # flake8-bugbear
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific rules
+    "PT",  # pytest style
+    "SIM", # simplify
+
+    # Additional valuable rules for a server application
+    "ASYNC", # async/await best practices
+    "BLE",   # blind except handling
+    "DTZ",   # datetime handling
+    "G",     # logging format string issues
+    "ICN",   # import conventions
+    "PGH",   # pygrep hooks
+    "PIE",   # misc. linting
+    "PL",    # pylint rules ported to ruff
+    "RET",   # return value consistency
+    "RSE",   # raise statement formatting
+    "S",     # bandit (security) - important for command execution!
+    "SLF",   # private member access
+    "TRY",   # try-except best practices
+    "COM",   # trailing comma enforcement (except COM812 which conflicts with formatter)
+    "ERA",   # eradicate (commented out code)
+    "T20",   # print statements
+    "ARG",   # unused arguments
 ]
+
+# Rules to ignore
+ignore = [
+    # Complexity - handled by pylint
+    "C901",    # Function is too complex
+    "PLR0911", # Too many return statements
+    "PLR0912", # Too many branches
+    "PLR0913", # Too many arguments
+    "PLR0915", # Too many statements
+    "PLR2004", # Magic value in comparison
+
+    # Stylistic preferences
+    "RUF012", # Mutable class attributes should be annotated with typing.ClassVar
+
+    # Noise reduction - warnings that often produce false positives
+    "PLC0414", # Import alias does not rename variable
+    "PLR0904", # Too many public methods
+    "PLW0603", # Global statement usage
+    "PLW2901", # Outer loop variable overwritten
+    "PT011",   # Too broad pytest.raises without match
+    "SIM102",  # Nested if-statements (sometimes better for readability)
+    "SIM108",  # Use ternary instead of if-else (often less readable)
+    "TRY003",  # Avoid long messages in exceptions
+
+    # User-requested suppressions
+    "G004",   # Don't warn about f-strings in logging
+    "PGH003", # Don't warn about unspecific # type: ignore comments
+    "RET502", # Don't warn about implicit return None
+    "RET503", # Don't warn about missing explicit return
+    "RET505", # Don't warn about elif after return
+    "TRY300", # Don't suggest moving return to else block
+    "TRY301", # Don't suggest abstracting raise to inner function
+    "TRY401", # Don't warn about redundant exception in logging.exception
+
+    # Security exceptions that make sense for this project
+    "S101", # Use of assert detected (fine for tests)
+
+    # Rule that conflicts with the formatter
+    "COM812", # Missing trailing comma in collection of items
+]
+
+# Import organization settings
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-sort-within-sections = true
+known-first-party = ["droidmind"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+# File-specific rule adjustments
+[tool.ruff.lint.per-file-ignores]
+# Ignore unused imports in __init__ files
+"__init__.py" = ["F401", "E402"]
+
+# More relaxed rules for tests
+"tests/**/*.py" = [
+    "ARG001",  # Unused function arguments (common for fixtures)
+    "E501",    # Allow longer lines in tests (assertions can get verbose)
+    "PIE790",  # Allow unnecessary 'pass' statements in mocks
+    "PLR2004", # Allow magic numbers in tests
+    "PT018",   # Allow complex assertions (common in tests to check multiple conditions)
+    "RET504",  # Allow unnecessary assignment before return (clearer in tests)
+    "S101",    # Allow asserts in tests
+    "S105",    # Allow hardcoded passwords in variable assignments (it's just test data!)
+    "S106",    # Allow hardcoded passwords as arguments (it's just test data!)
+    "SLF001",  # Allow private member access in tests
+    "BLE001",  # Allow catching blind exceptions in tests
+]
+
+# Module-specific rules
+"droidmind/security/**/*.py" = [
+    # Enable all security rules for security modules
+]
+
+"droidmind/adb/**/*.py" = [
+    # Extra security for command execution
+]
+
+"droidmind/server/**/*.py" = [
+    # Enable stricter async rules
+]
+
+# Format settings for consistency
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = 80
+
+# Pylint configuration - only for things Ruff can't handle
+[tool.pylint]
+py-version = "3.13"
+jobs = 2
+max-line-length = 120
+disable = [
+    # Covered by Ruff
+    "bad-indentation",
+    "line-too-long",
+    "missing-final-newline",
+    "trailing-whitespace",
+    "unnecessary-semicolon",
+    "missing-docstring",
+    "invalid-name",
+    "abstract-class-instantiated",
+    "abstract-method",
+    "arguments-differ",
+    "assignment-from-none",
+    "attribute-defined-outside-init",
+    "protected-access",
+    "signature-differs",
+    "too-few-public-methods",
+    "import-error",
+    "no-member",
+    "no-name-in-module",
+    "unused-import",
+    "redefined-outer-name",
+    "unused-argument",
+    "unused-variable",
+    "fixme",
+
+    # Additional suppressions for practicality
+    "broad-except",
+]
+
+# Enable only the high-value checks that Ruff doesn't cover
+enable = [
+    "use-symbolic-message-instead",
+    "useless-suppression",
+    "duplicate-code",
+]
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "ex", "id", "fd", "_"]
+
+[tool.pylint.design]
+max-parents = 15
+max-returns = 10
+max-branches = 20
+max-statements = 60
+max-attributes = 20
+max-locals = 25
+max-args = 10
+max-nested-blocks = 8
