@@ -7,9 +7,8 @@ This module provides a wrapper around the adb_shell library to interact with And
 import asyncio
 import logging
 import os
-import re
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+import re
 
 from adb_shell.adb_device import AdbDeviceTcp, AdbDeviceUsb
 from adb_shell.auth.keygen import keygen
@@ -26,7 +25,7 @@ class ADBWrapper:
 
     def __init__(
         self,
-        adb_key_path: Optional[str] = None,
+        adb_key_path: str | None = None,
         connection_timeout: float = 10.0,
         auth_timeout: float = 1.0,
     ):
@@ -45,7 +44,7 @@ class ADBWrapper:
         self._ensure_adb_key_exists()
 
         # Dict to store connected devices keyed by serial number
-        self._devices: Dict[str, Union[AdbDeviceTcp, AdbDeviceUsb]] = {}
+        self._devices: dict[str, AdbDeviceTcp | AdbDeviceUsb] = {}
 
         logger.debug(f"ADBWrapper initialized with key: {self.adb_key_path}")
 
@@ -73,7 +72,7 @@ class ADBWrapper:
                 f"{self.adb_key_path}.pub",
             )
         except Exception as e:
-            logger.error(f"Failed to load ADB key: {e}")
+            logger.exception(f"Failed to load ADB key: {e}")
             raise
 
     async def connect_device_tcp(self, host: str, port: int = 5555) -> str:
@@ -104,9 +103,7 @@ class ADBWrapper:
         try:
             # Connect to the device
             signer = self._load_signer()
-            await asyncio.to_thread(
-                device.connect, rsa_keys=[signer], auth_timeout_s=self.auth_timeout
-            )
+            await asyncio.to_thread(device.connect, rsa_keys=[signer], auth_timeout_s=self.auth_timeout)
 
             # Store the connected device
             self._devices[serial] = device
@@ -115,10 +112,10 @@ class ADBWrapper:
             return serial
 
         except Exception as e:
-            logger.error(f"Failed to connect to device {host}:{port}: {e}")
+            logger.exception(f"Failed to connect to device {host}:{port}: {e}")
             raise
 
-    async def connect_device_usb(self) -> Optional[str]:
+    async def connect_device_usb(self) -> str | None:
         """Connect to a USB device.
 
         Returns:
@@ -139,16 +136,14 @@ class ADBWrapper:
                 return serial
 
             logger.info(f"Connecting to USB device {serial}...")
-            await asyncio.to_thread(
-                device.connect, rsa_keys=[self._load_signer()], auth_timeout_s=self.auth_timeout
-            )
+            await asyncio.to_thread(device.connect, rsa_keys=[self._load_signer()], auth_timeout_s=self.auth_timeout)
 
             self._devices[serial] = device
             logger.info(f"Connected to USB device {serial}")
             return serial
 
         except Exception as e:
-            logger.error(f"Failed to connect to USB device: {e}")
+            logger.exception(f"Failed to connect to USB device: {e}")
             return None
 
     async def disconnect_device(self, serial: str) -> bool:
@@ -172,10 +167,10 @@ class ADBWrapper:
             return True
 
         except Exception as e:
-            logger.error(f"Error disconnecting from {serial}: {e}")
+            logger.exception(f"Error disconnecting from {serial}: {e}")
             return False
 
-    async def get_devices(self) -> List[Dict[str, str]]:
+    async def get_devices(self) -> list[dict[str, str]]:
         """Get a list of connected devices.
 
         Returns:
@@ -206,9 +201,7 @@ class ADBWrapper:
 
                 # Get Android version if possible
                 try:
-                    android_version = await self.get_device_property(
-                        serial, "ro.build.version.release"
-                    )
+                    android_version = await self.get_device_property(serial, "ro.build.version.release")
                     if android_version:
                         device_info["android_version"] = android_version
                 except Exception:
@@ -217,7 +210,7 @@ class ADBWrapper:
                 result.append(device_info)
 
             except Exception as e:
-                logger.error(f"Error getting info for device {serial}: {e}")
+                logger.exception(f"Error getting info for device {serial}: {e}")
 
         return result
 
@@ -242,18 +235,17 @@ class ADBWrapper:
 
         try:
             logger.debug(f"Running shell command on {serial}: {command}")
-            result = await asyncio.to_thread(device.shell, command)
-            return result
+            return await asyncio.to_thread(device.shell, command)
 
         except AdbCommandFailureException as e:
-            logger.error(f"Command failed on {serial}: {e}")
+            logger.exception(f"Command failed on {serial}: {e}")
             raise
 
         except Exception as e:
-            logger.error(f"Error executing command on {serial}: {e}")
+            logger.exception(f"Error executing command on {serial}: {e}")
             raise
 
-    async def get_device_properties(self, serial: str) -> Dict[str, str]:
+    async def get_device_properties(self, serial: str) -> dict[str, str]:
         """Get all properties from a device.
 
         Args:
@@ -277,7 +269,7 @@ class ADBWrapper:
 
         return properties
 
-    async def get_device_property(self, serial: str, prop_name: str) -> Optional[str]:
+    async def get_device_property(self, serial: str, prop_name: str) -> str | None:
         """Get a specific property from a device.
 
         Args:
@@ -294,7 +286,7 @@ class ADBWrapper:
             result = await self.shell(serial, f"getprop {prop_name}")
             return result.strip() if result else None
         except Exception as e:
-            logger.error(f"Error getting property {prop_name} from {serial}: {e}")
+            logger.exception(f"Error getting property {prop_name} from {serial}: {e}")
             return None
 
     async def install_app(
@@ -370,7 +362,7 @@ class ADBWrapper:
             return f"Successfully pushed {os.path.basename(local_path)} to {device_path}"
 
         except Exception as e:
-            logger.error(f"Error pushing file to {serial}: {e}")
+            logger.exception(f"Error pushing file to {serial}: {e}")
             raise
 
     async def pull_file(self, serial: str, device_path: str, local_path: str) -> str:
@@ -405,7 +397,7 @@ class ADBWrapper:
             return f"Successfully pulled {device_path} to {os.path.basename(local_path)}"
 
         except Exception as e:
-            logger.error(f"Error pulling file from {serial}: {e}")
+            logger.exception(f"Error pulling file from {serial}: {e}")
             raise
 
     async def reboot_device(self, serial: str, mode: str = "normal") -> str:
@@ -445,10 +437,10 @@ class ADBWrapper:
             return f"Device {serial} rebooting into {mode} mode"
 
         except Exception as e:
-            logger.error(f"Error rebooting {serial}: {e}")
+            logger.exception(f"Error rebooting {serial}: {e}")
             raise
 
-    async def capture_screenshot(self, serial: str, local_path: Optional[str] = None) -> str:
+    async def capture_screenshot(self, serial: str, local_path: str | None = None) -> str:
         """Capture a screenshot from the device.
 
         Args:
@@ -486,10 +478,10 @@ class ADBWrapper:
             return local_path
 
         except Exception as e:
-            logger.error(f"Error capturing screenshot from {serial}: {e}")
+            logger.exception(f"Error capturing screenshot from {serial}: {e}")
             raise
 
-    async def list_apps(self, serial: str, system_apps: bool = False) -> List[Dict[str, str]]:
+    async def list_apps(self, serial: str, system_apps: bool = False) -> list[dict[str, str]]:
         """List installed apps on the device.
 
         Args:

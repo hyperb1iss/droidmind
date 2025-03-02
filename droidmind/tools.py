@@ -5,6 +5,7 @@ This module provides all the tool implementations for the DroidMind MCP server,
 allowing AI assistants to interact with Android devices.
 """
 
+import contextlib
 import logging
 import os
 
@@ -70,7 +71,7 @@ async def device_properties(serial: str, ctx: Context) -> str:
     try:
         properties = await adb.get_device_properties(serial)
     except Exception as e:
-        return f"Error retrieving device properties: {str(e)}"
+        return f"Error retrieving device properties: {e!s}"
 
     # Extract key information
     android_version = properties.get("ro.build.version.release", "Unknown")
@@ -153,7 +154,7 @@ async def device_logcat(serial: str, ctx: Context) -> str:
         return f"# Logcat for device {serial}\n\n```\n{logcat}\n```"
 
     except Exception as e:
-        return f"Error retrieving logcat: {str(e)}"
+        return f"Error retrieving logcat: {e!s}"
 
 
 @mcp.tool()
@@ -192,7 +193,7 @@ async def list_directory(serial: str, path: str, ctx: Context) -> str:
         return f"# Directory listing for {path} on device {serial}\n\n```\n{output}\n```"
 
     except Exception as e:
-        return f"Error listing directory: {str(e)}"
+        return f"Error listing directory: {e!s}"
 
 
 @mcp.tool()
@@ -230,7 +231,7 @@ async def connect_device(host: str, ctx: Context, port: int = 5555) -> str:
         return f"Successfully connected to {model} (Android {android_version}) at {serial}"
 
     except Exception as e:
-        return f"Failed to connect to device: {str(e)}"
+        return f"Failed to connect to device: {e!s}"
 
 
 @mcp.tool()
@@ -257,7 +258,7 @@ async def disconnect_device(serial: str, ctx: Context) -> str:
             return f"Device {serial} was not connected"
 
     except Exception as e:
-        return f"Error disconnecting from device: {str(e)}"
+        return f"Error disconnecting from device: {e!s}"
 
 
 @mcp.tool()
@@ -289,7 +290,7 @@ async def shell_command(serial: str, command: str, ctx: Context) -> str:
         return f"Command output from {serial}:\n\n```\n{output}\n```"
 
     except Exception as e:
-        return f"Error running command: {str(e)}"
+        return f"Error running command: {e!s}"
 
 
 @mcp.tool()
@@ -347,7 +348,7 @@ async def install_app(
         return result
 
     except Exception as e:
-        return f"Error installing app: {str(e)}"
+        return f"Error installing app: {e!s}"
 
 
 @mcp.tool()
@@ -398,10 +399,8 @@ async def capture_screenshot(serial: str, ctx: Context) -> Image:
         ctx.info(f"Screenshot captured successfully ({len(image_data)} bytes)")
 
         # Clean up local temp file after reading
-        try:
+        with contextlib.suppress(Exception):
             os.unlink(screenshot_path)
-        except Exception:
-            pass
 
         # Create Image object with format attribute - this is needed for tests
         image = Image(data=image_data)
@@ -409,7 +408,7 @@ async def capture_screenshot(serial: str, ctx: Context) -> Image:
         return image
 
     except Exception as e:
-        ctx.error(f"Error capturing screenshot: {str(e)}")
+        ctx.error(f"Error capturing screenshot: {e!s}")
         raise
 
 
@@ -441,9 +440,8 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
     try:
         # Reboot the device
         ctx.info(f"Rebooting device {serial} into {mode} mode...")
-        result = await adb.reboot_device(serial, mode)
+        return await adb.reboot_device(serial, mode)
 
-        return result
 
     except Exception as e:
-        return f"Error rebooting device: {str(e)}"
+        return f"Error rebooting device: {e!s}"

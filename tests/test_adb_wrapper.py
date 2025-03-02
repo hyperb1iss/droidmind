@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from adb_shell.exceptions import AdbConnectionError
 import pytest
 import pytest_asyncio
-from adb_shell.exceptions import AdbConnectionError
 
 from droidmind.adb.wrapper import ADBWrapper
 
@@ -50,13 +50,13 @@ class TestADBWrapper(unittest.TestCase):
         wrapper = ADBWrapper(adb_key_path=self.adb_key_path)
 
         # Verify key loading
-        self.assertEqual(wrapper.adb_key_path, self.adb_key_path)
+        assert wrapper.adb_key_path == self.adb_key_path
         self.mock_signer.assert_called_once_with("mock_public_key", "mock_private_key")
 
         # Verify defaults
-        self.assertEqual(wrapper.connection_timeout, 10.0)
-        self.assertEqual(wrapper.auth_timeout, 1.0)
-        self.assertEqual(wrapper._devices, {})
+        assert wrapper.connection_timeout == 10.0
+        assert wrapper.auth_timeout == 1.0
+        assert wrapper._devices == {}
 
     def test_ensure_adb_key_exists(self):
         """Test ADB key generation if it doesn't exist."""
@@ -130,14 +130,10 @@ class TestADBWrapperAsync:
             serial = await wrapper.connect_device_tcp("192.168.1.100")
 
             # Verify the AdbDeviceTcp was created correctly
-            mock_device_class.assert_called_once_with(
-                "192.168.1.100", 5555, default_transport_timeout_s=10.0
-            )
+            mock_device_class.assert_called_once_with("192.168.1.100", 5555, default_transport_timeout_s=10.0)
 
             # Verify connect was called with the right parameters
-            mock_to_thread.assert_called_once_with(
-                device_mock.connect, rsa_keys=[wrapper.signer], auth_timeout_s=1.0
-            )
+            mock_to_thread.assert_called_once_with(device_mock.connect, rsa_keys=[wrapper.signer], auth_timeout_s=1.0)
 
             # Verify the device was added to the connected devices
             assert serial == "192.168.1.100:5555"

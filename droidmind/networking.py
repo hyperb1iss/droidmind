@@ -8,7 +8,6 @@ including SSE (Server-Sent Events) server setup and interface detection.
 import asyncio
 import logging
 import socket
-from typing import List, Tuple
 
 from mcp.server.fastmcp import FastMCP
 
@@ -17,7 +16,7 @@ from droidmind.utils import console
 logger = logging.getLogger("droidmind")
 
 
-def get_available_interfaces() -> List[Tuple[str, str]]:
+def get_available_interfaces() -> list[tuple[str, str]]:
     """
     Get available network interfaces with their IP addresses.
 
@@ -50,7 +49,7 @@ def get_available_interfaces() -> List[Tuple[str, str]]:
             ip = socket.gethostbyname(hostname)
             if ip and not ip.startswith("127."):
                 interfaces.append(("default", ip))
-        except (socket.error, OSError):
+        except OSError:
             pass
 
     # Always include localhost
@@ -70,13 +69,13 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
         mcp_server: The FastMCP server instance
         debug: Whether to enable debug mode
     """
-    import uvicorn
     from mcp.server.sse import SseServerTransport
     from starlette.applications import Starlette
     from starlette.middleware import Middleware
     from starlette.middleware.cors import CORSMiddleware
     from starlette.responses import HTMLResponse, JSONResponse
     from starlette.routing import Mount, Route
+    import uvicorn
 
     # Set up SSE transport
     sse = SseServerTransport("/messages/")
@@ -332,9 +331,7 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
 
     # Set up signal handlers for graceful shutdown
     def handle_exit(signum, frame):
-        logger.info(
-            f"Received signal {signal.Signals(signum).name}, initiating graceful shutdown with task debug..."
-        )
+        logger.info(f"Received signal {signal.Signals(signum).name}, initiating graceful shutdown with task debug...")
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

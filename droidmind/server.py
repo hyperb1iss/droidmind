@@ -46,9 +46,7 @@ logger = logging.getLogger("droidmind")
     default="stdio",
     help="Transport type to use (stdio for terminal, sse for network)",
 )
-@click.option(
-    "--debug/--no-debug", default=False, help="Enable debug mode for more verbose logging"
-)
+@click.option("--debug/--no-debug", default=False, help="Enable debug mode for more verbose logging")
 @click.option(
     "--log-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),

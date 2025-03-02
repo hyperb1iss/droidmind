@@ -10,7 +10,6 @@ import argparse
 import asyncio
 import json
 import sys
-from typing import Dict
 
 import httpx
 from rich.console import Console
@@ -21,7 +20,7 @@ from rich.panel import Panel
 console = Console()
 
 
-async def send_message(server_url: str, message: Dict) -> Dict:
+async def send_message(server_url: str, message: dict) -> dict:
     """Send a message to the DroidMind server and receive the response."""
     message_id = message.get("id", "unknown")
     messages_url = f"{server_url}/messages/{message_id}"
@@ -43,23 +42,22 @@ async def listen_for_events(server_url: str) -> None:
     console.print(f"[cyan]Connecting to SSE endpoint: {sse_url}[/cyan]")
 
     try:
-        async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("GET", sse_url) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data:"):
-                        data = line[5:].strip()
-                        if data:
-                            try:
-                                event = json.loads(data)
-                                await handle_event(event)
-                            except json.JSONDecodeError:
-                                console.print(f"[yellow]Invalid JSON in event: {data}[/yellow]")
+        async with httpx.AsyncClient(timeout=None) as client, client.stream("GET", sse_url) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.startswith("data:"):
+                    data = line[5:].strip()
+                    if data:
+                        try:
+                            event = json.loads(data)
+                            await handle_event(event)
+                        except json.JSONDecodeError:
+                            console.print(f"[yellow]Invalid JSON in event: {data}[/yellow]")
     except httpx.HTTPError as e:
         console.print(f"[red]Error listening for events: {e}[/red]")
 
 
-async def handle_event(event: Dict) -> None:
+async def handle_event(event: dict) -> None:
     """Handle an event received from the server."""
     event_type = event.get("type")
 
@@ -71,7 +69,7 @@ async def handle_event(event: Dict) -> None:
         console.print(f"[yellow]Unknown event type: {event_type}[/yellow]")
 
 
-async def handle_request(request: Dict) -> None:
+async def handle_request(request: dict) -> None:
     """Handle a request from the server."""
     request_id = request.get("id", "unknown")
     method = request.get("method")
@@ -99,7 +97,7 @@ async def handle_request(request: Dict) -> None:
     await send_message(server_url, response)
 
 
-def handle_notification(notification: Dict) -> None:
+def handle_notification(notification: dict) -> None:
     """Handle a notification from the server."""
     method = notification.get("method")
     params = notification.get("params", {})

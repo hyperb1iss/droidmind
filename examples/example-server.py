@@ -1,6 +1,6 @@
 import anyio
 import click
-import mcp.types as types
+from mcp import types
 from mcp.server.lowlevel import Server
 from pydantic import FileUrl
 
@@ -31,7 +31,7 @@ def main(port: int, transport: str) -> int:
                 description=f"A sample text resource named {name}",
                 mimeType="text/plain",
             )
-            for name in SAMPLE_RESOURCES.keys()
+            for name in SAMPLE_RESOURCES
         ]
 
     @app.read_resource()

@@ -31,7 +31,7 @@ properly formatted, time-stamped, and can be filtered by log level.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -119,7 +119,7 @@ def header(message: str) -> None:
     logger.info("=" * len(message))
 
 
-def device_table(devices: List[Dict[str, str]]) -> None:
+def device_table(devices: list[dict[str, str]]) -> None:
     """Print a table of connected devices."""
     if not devices:
         warning("No devices connected.")
@@ -145,7 +145,7 @@ def device_table(devices: List[Dict[str, str]]) -> None:
     logger.info(f"Displayed device table with {len(devices)} device(s)")
 
 
-def property_table(properties: Dict[str, str], title: str = "Device Properties") -> None:
+def property_table(properties: dict[str, str], title: str = "Device Properties") -> None:
     """Print a table of device properties."""
     if not properties:
         warning("No properties available.")
@@ -189,7 +189,7 @@ def progress_context(description: str = "Processing..."):
     )
 
 
-def create_device_tree(device_info: Dict[str, Any]) -> Tree:
+def create_device_tree(device_info: dict[str, Any]) -> Tree:
     """Create a rich Tree showing device information in a hierarchical view."""
     serial = device_info.get("serial", "unknown")
     tree = Tree(f"[bold cyan]{serial}[/bold cyan]")
@@ -201,13 +201,13 @@ def create_device_tree(device_info: Dict[str, Any]) -> Tree:
             basic.add(f"{key.replace('_', ' ').title()}: [yellow]{device_info[key]}[/yellow]")
 
     # Properties
-    if "properties" in device_info and device_info["properties"]:
+    if device_info.get("properties"):
         props = tree.add("Properties", style="blue")
         for key, value in device_info["properties"].items():
             props.add(f"{key}: [yellow]{value}[/yellow]")
 
     # Features
-    if "features" in device_info and device_info["features"]:
+    if device_info.get("features"):
         feats = tree.add("Features", style="blue")
         for feature in device_info["features"]:
             feats.add(f"[green]{feature}[/green]")

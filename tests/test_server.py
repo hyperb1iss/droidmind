@@ -3,17 +3,13 @@
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from mcp.server.fastmcp import Context, Image
+import pytest
 
 from droidmind.adb.wrapper import ADBWrapper
 from droidmind.server import (
     _device_properties_impl as device_properties,
-)
-from droidmind.server import (
     _list_devices_impl as list_devices,
-)
-from droidmind.server import (
     capture_screenshot,
     connect_device,
     disconnect_device,
@@ -99,9 +95,7 @@ async def test_device_properties(mock_context):
         "ro.product.cpu.abi": "arm64-v8a",
         "ro.sf.lcd_density": "440",
     }
-    mock_context.lifespan_context.adb.get_device_properties = AsyncMock(
-        return_value=mock_properties
-    )
+    mock_context.lifespan_context.adb.get_device_properties = AsyncMock(return_value=mock_properties)
 
     # Call the resource
     result = await device_properties("device1", mock_context)
@@ -135,9 +129,7 @@ async def test_device_properties_not_found(mock_context):
 async def test_connect_device(mock_context):
     """Test the connect_device tool."""
     # Set up mock connection
-    mock_context.lifespan_context.adb.connect_device_tcp = AsyncMock(
-        return_value="192.168.1.100:5555"
-    )
+    mock_context.lifespan_context.adb.connect_device_tcp = AsyncMock(return_value="192.168.1.100:5555")
 
     # Set up mock device info
     mock_devices = [
