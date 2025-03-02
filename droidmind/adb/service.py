@@ -70,24 +70,39 @@ class ADBService:
 
         logger.debug("ADBService cleanup complete")
 
+    # Delegation methods to expose ADB functionality via the service
+    async def get_devices(self) -> list[dict[str, str]]:
+        return await self.adb.get_devices()
 
-# Convenience function to get the ADB wrapper
+    async def shell(self, serial: str, command: str) -> str:
+        return await self.adb.shell(serial, command)
+
+    async def connect_device_tcp(self, host: str, port: int = 5555) -> str:
+        return await self.adb.connect_device_tcp(host, port)
+
+    async def disconnect_device(self, serial: str) -> bool:
+        return await self.adb.disconnect_device(serial)
+
+    async def get_device_properties(self, serial: str) -> dict[str, str]:
+        return await self.adb.get_device_properties(serial)
+
+    async def push_file(self, serial: str, local_path: str, device_path: str) -> str:
+        return await self.adb.push_file(serial, local_path, device_path)
+
+    async def pull_file(self, serial: str, device_path: str, local_path: str) -> str:
+        return await self.adb.pull_file(serial, device_path, local_path)
+
+    async def install_app(
+        self, serial: str, apk_path: str, reinstall: bool = False, grant_permissions: bool = True
+    ) -> str:
+        return await self.adb.install_app(serial, apk_path, reinstall, grant_permissions)
+
+    async def reboot_device(self, serial: str, mode: str = "normal") -> str:
+        return await self.adb.reboot_device(serial, mode)
+
+
+# Added get_adb function
 async def get_adb() -> ADBWrapper:
-    """Get the ADB wrapper instance.
-
-    Returns:
-        The ADB wrapper instance
-    """
+    """Return the ADBWrapper instance from the ADBService singleton."""
     service = await ADBService.get_instance()
     return service.adb
-
-
-# Convenience function to get the temp directory
-async def get_temp_dir() -> str | None:
-    """Get the temporary directory path.
-
-    Returns:
-        Temporary directory path or None if not set
-    """
-    service = await ADBService.get_instance()
-    return service.temp_dir

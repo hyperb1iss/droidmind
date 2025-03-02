@@ -9,7 +9,7 @@ Resources are like read-only endpoints that expose data to the AI assistant.
 
 import logging
 
-from droidmind.adb.service import get_adb
+from droidmind.devices import DeviceManager
 from droidmind.mcp_instance import mcp
 
 logger = logging.getLogger("droidmind")
@@ -23,14 +23,17 @@ async def get_devices_list() -> str:
     Returns:
         A markdown-formatted list of connected devices
     """
-    adb = await get_adb()
-    devices = await adb.get_devices()
+    devices = await DeviceManager.list_devices()
 
     if not devices:
         return "No devices connected."
 
     result = "# Connected Devices\n\n"
-    for device in devices:
-        result += f"- **{device.get('model', 'Unknown')}** (`{device.get('serial', 'Unknown')}`)\n"
+    for i, device in enumerate(devices, 1):
+        model = await device.model
+        android_version = await device.android_version
+        result += f"## Device {i}: {model}\n"
+        result += f"- **Serial**: `{device.serial}`\n"
+        result += f"- **Android Version**: {android_version}\n"
 
     return result
