@@ -9,7 +9,9 @@ from collections.abc import AsyncGenerator
 import contextlib
 from dataclasses import dataclass
 import logging
+import shutil
 import tempfile
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -33,14 +35,14 @@ class DroidMindContext:
 
 # Create a lifespan function for the MCP server
 @contextlib.asynccontextmanager
-async def mcp_lifespan(server: object) -> AsyncGenerator[DroidMindContext]:
+async def mcp_lifespan(_server: Any) -> AsyncGenerator[DroidMindContext]:
     """Lifespan context manager for the MCP server.
 
     This sets up the ADB service and temporary directory for the server.
     """
     # Create a temporary directory for file operations
     temp_dir = tempfile.mkdtemp(prefix="droidmind_")
-    logger.debug(f"Created temporary directory: {temp_dir}")
+    logger.debug("Created temporary directory: %s", temp_dir)
 
     # Set up the ADB service with the temp directory
     adb_service = await ADBService.get_instance()
@@ -58,17 +60,17 @@ async def mcp_lifespan(server: object) -> AsyncGenerator[DroidMindContext]:
         try:
             await adb_service.cleanup()
             logger.debug("ADB service cleaned up")
-        except Exception as e:
-            logger.error(f"Error cleaning up ADB service: {e}")
+        except Exception:
+            # We need to catch all exceptions during cleanup to ensure resources are released
+            logger.exception("Error cleaning up ADB service")
 
         # Remove temporary directory
         try:
-            import shutil
-
             shutil.rmtree(temp_dir, ignore_errors=True)
-            logger.debug(f"Removed temporary directory: {temp_dir}")
-        except Exception as e:
-            logger.error(f"Error removing temporary directory: {e}")
+            logger.debug("Removed temporary directory: %s", temp_dir)
+        except Exception:
+            # We need to catch all exceptions during cleanup to ensure resources are released
+            logger.exception("Error removing temporary directory")
 
 
 # Create the MCP server
@@ -81,3 +83,5 @@ mcp = FastMCP(
 
 # Import tools and resources to register them with the MCP server
 # These imports must come after the mcp server creation to avoid circular imports
+import droidmind.resources  # noqa: E402
+import droidmind.tools  # noqa: E402, F401

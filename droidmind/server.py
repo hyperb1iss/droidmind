@@ -110,12 +110,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
     # Start appropriate server based on transport mode
     if transport == "sse":
         # Launch the SSE server - no need to display connection info again
-        setup_sse_server(
-            cast(str, config["host"]),
-            cast(int, config["port"]),
-            mcp,
-            debug
-        )
+        setup_sse_server(cast(str, config["host"]), cast(int, config["port"]), mcp, debug)
     else:
         # Use stdio transport for terminal use
         logger.info("Using stdio transport for terminal interaction")
