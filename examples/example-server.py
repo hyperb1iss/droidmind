@@ -51,12 +51,8 @@ def main(port: int, transport: str) -> int:
         sse = SseServerTransport("/messages/")
 
         async def handle_sse(request):
-            async with sse.connect_sse(
-                request.scope, request.receive, request._send
-            ) as streams:
-                await app.run(
-                    streams[0], streams[1], app.create_initialization_options()
-                )
+            async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
+                await app.run(streams[0], streams[1], app.create_initialization_options())
 
         starlette_app = Starlette(
             debug=True,
@@ -74,9 +70,7 @@ def main(port: int, transport: str) -> int:
 
         async def arun():
             async with stdio_server() as streams:
-                await app.run(
-                    streams[0], streams[1], app.create_initialization_options()
-                )
+                await app.run(streams[0], streams[1], app.create_initialization_options())
 
         anyio.run(arun)
 

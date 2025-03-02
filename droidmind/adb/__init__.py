@@ -7,4 +7,4 @@ via the ADB (Android Debug Bridge) protocol.
 
 from droidmind.adb.wrapper import ADBWrapper
 
-__all__ = ["ADBWrapper"] 
+__all__ = ["ADBWrapper"]

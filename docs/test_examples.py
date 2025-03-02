@@ -1,7 +1,6 @@
 """Tests for example servers"""
 
 import pytest
-
 from mcp.shared.memory import (
     create_connected_server_and_client_session as client_session,
 )
@@ -28,9 +27,7 @@ async def test_complex_inputs():
 
     async with client_session(mcp._mcp_server) as client:
         tank = {"shrimp": [{"name": "bob"}, {"name": "alice"}]}
-        result = await client.call_tool(
-            "name_shrimp", {"tank": tank, "extra_names": ["charlie"]}
-        )
+        result = await client.call_tool("name_shrimp", {"tank": tank, "extra_names": ["charlie"]})
         assert len(result.content) == 3
         assert isinstance(result.content[0], TextContent)
         assert isinstance(result.content[1], TextContent)

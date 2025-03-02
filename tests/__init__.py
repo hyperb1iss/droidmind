@@ -1,1 +1,1 @@
-"""Tests for the DroidMind MCP server.""" 
+"""Tests for the DroidMind MCP server."""

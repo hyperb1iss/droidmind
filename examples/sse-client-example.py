@@ -6,16 +6,16 @@ This script demonstrates how to connect to a DroidMind server using the
 Server-Sent Events (SSE) transport and perform basic device operations.
 """
 
+import argparse
 import asyncio
 import json
 import sys
-from typing import Dict, List, Optional
-import argparse
+from typing import Dict
 
 import httpx
 from rich.console import Console
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
 
 # Set up console for pretty output
 console = Console()
@@ -25,14 +25,10 @@ async def send_message(server_url: str, message: Dict) -> Dict:
     """Send a message to the DroidMind server and receive the response."""
     message_id = message.get("id", "unknown")
     messages_url = f"{server_url}/messages/{message_id}"
-    
+
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                messages_url,
-                json=message,
-                timeout=30.0
-            )
+            response = await client.post(messages_url, json=message, timeout=30.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -43,9 +39,9 @@ async def send_message(server_url: str, message: Dict) -> Dict:
 async def listen_for_events(server_url: str) -> None:
     """Listen for SSE events from the server."""
     sse_url = f"{server_url}/sse"
-    
+
     console.print(f"[cyan]Connecting to SSE endpoint: {sse_url}[/cyan]")
-    
+
     try:
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream("GET", sse_url) as response:
@@ -66,7 +62,7 @@ async def listen_for_events(server_url: str) -> None:
 async def handle_event(event: Dict) -> None:
     """Handle an event received from the server."""
     event_type = event.get("type")
-    
+
     if event_type == "request":
         await handle_request(event)
     elif event_type == "notification":
@@ -79,10 +75,10 @@ async def handle_request(request: Dict) -> None:
     """Handle a request from the server."""
     request_id = request.get("id", "unknown")
     method = request.get("method")
-    params = request.get("params", {})
-    
+    request.get("params", {})
+
     console.print(f"[green]Received request {request_id}: {method}[/green]")
-    
+
     if method == "initialize":
         # Respond to initialization request
         response = {
@@ -91,20 +87,13 @@ async def handle_request(request: Dict) -> None:
             "result": {
                 "name": "Example DroidMind Client",
                 "version": "0.1.0",
-                "capabilities": {
-                    "chat": True,
-                    "multimodal": True
-                }
-            }
+                "capabilities": {"chat": True, "multimodal": True},
+            },
         }
     else:
         # Default response for unknown methods
-        response = {
-            "id": request_id,
-            "type": "response",
-            "result": None
-        }
-    
+        response = {"id": request_id, "type": "response", "result": None}
+
     # Send response back to server
     server_url = "http://localhost:8000"  # Replace with actual server URL
     await send_message(server_url, response)
@@ -114,13 +103,15 @@ def handle_notification(notification: Dict) -> None:
     """Handle a notification from the server."""
     method = notification.get("method")
     params = notification.get("params", {})
-    
+
     if method == "progress":
-        console.print(f"[cyan]Progress: {params.get('current')}/{params.get('total')} - {params.get('message', '')}[/cyan]")
+        console.print(
+            f"[cyan]Progress: {params.get('current')}/{params.get('total')} - {params.get('message', '')}[/cyan]"
+        )
     elif method == "log":
         level = params.get("level", "info").upper()
         message = params.get("message", "")
-        
+
         if level == "ERROR":
             console.print(f"[red]ERROR: {message}[/red]")
         elif level == "WARNING":
@@ -134,18 +125,16 @@ def handle_notification(notification: Dict) -> None:
 async def list_devices(server_url: str) -> None:
     """List connected Android devices using the DroidMind API."""
     console.print("[cyan]Listing connected Android devices...[/cyan]")
-    
+
     request = {
         "id": "list-devices-request",
         "type": "request",
         "method": "readResource",
-        "params": {
-            "uri": "device://list"
-        }
+        "params": {"uri": "device://list"},
     }
-    
+
     response = await send_message(server_url, request)
-    
+
     if "result" in response:
         result = response["result"]
         console.print(Panel(Markdown(result), title="Connected Devices"))
@@ -156,22 +145,16 @@ async def list_devices(server_url: str) -> None:
 async def connect_to_device(server_url: str, host: str, port: int = 5555) -> None:
     """Connect to an Android device using the DroidMind API."""
     console.print(f"[cyan]Connecting to device at {host}:{port}...[/cyan]")
-    
+
     request = {
         "id": "connect-device-request",
         "type": "request",
         "method": "executeTool",
-        "params": {
-            "name": "connect_device",
-            "arguments": {
-                "host": host,
-                "port": port
-            }
-        }
+        "params": {"name": "connect_device", "arguments": {"host": host, "port": port}},
     }
-    
+
     response = await send_message(server_url, request)
-    
+
     if "result" in response:
         result = response["result"]
         console.print(f"[green]{result}[/green]")
@@ -182,18 +165,16 @@ async def connect_to_device(server_url: str, host: str, port: int = 5555) -> Non
 async def get_device_properties(server_url: str, serial: str) -> None:
     """Get device properties using the DroidMind API."""
     console.print(f"[cyan]Getting properties for device {serial}...[/cyan]")
-    
+
     request = {
         "id": "device-props-request",
         "type": "request",
         "method": "readResource",
-        "params": {
-            "uri": f"device://{serial}/properties"
-        }
+        "params": {"uri": f"device://{serial}/properties"},
     }
-    
+
     response = await send_message(server_url, request)
-    
+
     if "result" in response:
         result = response["result"]
         console.print(Panel(Markdown(result), title=f"Device Properties: {serial}"))
@@ -204,25 +185,19 @@ async def get_device_properties(server_url: str, serial: str) -> None:
 async def run_shell_command(server_url: str, serial: str, command: str) -> None:
     """Run a shell command on the device using the DroidMind API."""
     console.print(f"[cyan]Running command on {serial}: {command}[/cyan]")
-    
+
     request = {
         "id": "shell-command-request",
         "type": "request",
         "method": "executeTool",
-        "params": {
-            "name": "shell_command",
-            "arguments": {
-                "serial": serial,
-                "command": command
-            }
-        }
+        "params": {"name": "shell_command", "arguments": {"serial": serial, "command": command}},
     }
-    
+
     response = await send_message(server_url, request)
-    
+
     if "result" in response:
         result = response["result"]
-        console.print(Panel(Markdown(result), title=f"Command Output"))
+        console.print(Panel(Markdown(result), title="Command Output"))
     else:
         console.print("[red]Error running command[/red]")
 
@@ -231,23 +206,29 @@ async def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="DroidMind SSE Client Example")
     parser.add_argument("--server", default="http://localhost:8000", help="DroidMind server URL")
-    parser.add_argument("--action", choices=["list", "connect", "properties", "shell", "listen"], 
-                      default="listen", help="Action to perform")
+    parser.add_argument(
+        "--action",
+        choices=["list", "connect", "properties", "shell", "listen"],
+        default="listen",
+        help="Action to perform",
+    )
     parser.add_argument("--host", help="Device IP address (for connect)")
     parser.add_argument("--port", type=int, default=5555, help="Device port (for connect)")
     parser.add_argument("--serial", help="Device serial number (for properties, shell)")
     parser.add_argument("--command", help="Shell command to run (for shell)")
-    
+
     args = parser.parse_args()
-    
-    console.print(Panel(
-        f"[cyan bold]DroidMind SSE Client Example[/cyan bold]\n\n"
-        f"Server: [green]{args.server}[/green]\n"
-        f"Action: [green]{args.action}[/green]",
-        title="🤖 Android Control",
-        border_style="cyan"
-    ))
-    
+
+    console.print(
+        Panel(
+            f"[cyan bold]DroidMind SSE Client Example[/cyan bold]\n\n"
+            f"Server: [green]{args.server}[/green]\n"
+            f"Action: [green]{args.action}[/green]",
+            title="🤖 Android Control",
+            border_style="cyan",
+        )
+    )
+
     if args.action == "list":
         await list_devices(args.server)
     elif args.action == "connect":
@@ -276,4 +257,4 @@ if __name__ == "__main__":
         console.print("[yellow]Client terminated by user[/yellow]")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        sys.exit(1) 
+        sys.exit(1)

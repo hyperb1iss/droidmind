@@ -7,4 +7,4 @@ Android devices via ADB.
 """
 
 __version__ = "0.1.0"
-__all__ = ["server", "adb", "resources", "tools", "utils"] 
+__all__ = ["server", "core", "tools", "resources", "prompts", "networking", "adb", "utils"]
