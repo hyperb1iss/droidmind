@@ -261,12 +261,16 @@ def setup_sse_server(host: str, port: int, mcp_server: FastMCP, debug: bool = Fa
     # Create Starlette app with CORS middleware and lifespan
     async def lifespan(app: Starlette) -> AsyncGenerator:
         """Handle application lifespan events."""
-        # Setup
+        # Setup - nothing to do here now as MCP server handles ADB setup
         yield
+
         # Cleanup on shutdown
-        logger.info("Cleaning up SSE connections...")
+        logger.info("Cleaning up resources...")
+
         # Clear active connections to prevent hanging
         active_connections.clear()
+        logger.debug("Cleared active connections")
+
         # Give tasks a moment to clean up
         await asyncio.sleep(0.5)
 

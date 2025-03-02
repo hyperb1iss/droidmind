@@ -12,7 +12,7 @@ import re
 
 from mcp.server.fastmcp import Context, Image
 
-from droidmind.adb.service import get_adb
+from droidmind.adb.service import get_adb, get_temp_dir
 from droidmind.adb.wrapper import ADBWrapper
 from droidmind.core import mcp
 
@@ -62,7 +62,8 @@ async def device_properties(serial: str, ctx: Context) -> str:
     Returns:
         Formatted device properties as text
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -139,7 +140,8 @@ async def device_logcat(serial: str, ctx: Context) -> str:
     Returns:
         Recent logcat entries
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -173,7 +175,8 @@ async def list_directory(serial: str, path: str, ctx: Context) -> str:
     Returns:
         Directory listing
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -266,7 +269,8 @@ async def disconnect_device(serial: str, ctx: Context) -> str:
     Returns:
         Disconnection result message
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     try:
         # Try to disconnect from the device
@@ -294,7 +298,8 @@ async def shell_command(serial: str, command: str, ctx: Context) -> str:
     Returns:
         Command output
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -334,7 +339,8 @@ async def install_app(
     Returns:
         Installation result message
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     try:
         await ctx.report_progress(0, 2)
@@ -375,8 +381,12 @@ async def capture_screenshot(serial: str, ctx: Context) -> Image:
     Returns:
         Device screenshot as an image
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
-    temp_dir: str = ctx.request_context.lifespan_context.temp_dir
+    # Get ADB and temp_dir directly from the service instead of context
+    adb = await get_adb()
+    temp_dir = await get_temp_dir()
+
+    if temp_dir is None:
+        raise ValueError("Temporary directory not set")
 
     # Check if device is connected
     devices = await adb.get_devices()
@@ -437,7 +447,8 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
     Returns:
         Reboot result message
     """
-    adb: ADBWrapper = ctx.request_context.lifespan_context.adb
+    # Get ADB directly from the service instead of context
+    adb = await get_adb()
 
     await ctx.report_progress(0, 1)
     ctx.info(f"Preparing to reboot device {serial} into {mode} mode...")
