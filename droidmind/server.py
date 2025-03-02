@@ -9,10 +9,14 @@ import ipaddress
 import logging
 import signal
 import sys
+from typing import Any, cast
 
+# Third-party imports
+import anyio
 import click
+from mcp.server.stdio import stdio_server
 
-# Import DroidMind modules
+# First-party imports (DroidMind modules)
 from droidmind.core import mcp
 from droidmind.networking import setup_sse_server
 from droidmind.utils import console
@@ -54,7 +58,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
     console.print_banner()
 
     # Prepare server configuration info
-    config = {
+    config: dict[str, Any] = {
         "transport": transport.upper(),
         "host": host,
         "port": port,
@@ -78,7 +82,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
 
     # Configure basic logging with our custom handler
     logging.basicConfig(
-        level=getattr(logging, config["log_level"]),
+        level=getattr(logging, str(config["log_level"])),
         format="%(message)s",
         datefmt="[%X]",
         handlers=[handler],
@@ -95,8 +99,8 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
         uvicorn_logger.propagate = False
 
     # Set up signal handlers
-    def handle_exit(signum: int, frame: object) -> None:
-        logger.info(f"Received signal {signal.Signals(signum).name}, shutting down gracefully...")
+    def handle_exit(signum: int, _: object = None) -> None:
+        logger.info("Received signal %s, shutting down gracefully...", signal.Signals(signum).name)
         sys.exit(0)
 
     # Register signal handlers
@@ -106,28 +110,30 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
     # Start appropriate server based on transport mode
     if transport == "sse":
         # Launch the SSE server - no need to display connection info again
-        setup_sse_server(config["host"], config["port"], mcp, debug)
+        setup_sse_server(
+            cast(str, config["host"]),
+            cast(int, config["port"]),
+            mcp,
+            debug
+        )
     else:
         # Use stdio transport for terminal use
         logger.info("Using stdio transport for terminal interaction")
 
         # Launch the stdio server
-        import anyio
-        from mcp.server.stdio import stdio_server
-
         async def arun() -> None:
             async with stdio_server() as streams:
                 # Log that we're ready to accept commands
                 console.startup_complete()
 
-                await mcp._mcp_server.run(
+                # Use the public FastMCP run method
+                await mcp.run(
                     streams[0],
                     streams[1],
-                    mcp._mcp_server.create_initialization_options(),
                 )
 
         anyio.run(arun)
 
 
 if __name__ == "__main__":
-    main()
+    main(host="127.0.0.1", port=8000, transport="stdio", debug=False, log_level="INFO")
