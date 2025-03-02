@@ -45,7 +45,7 @@ class ADBService:
             temp_dir: Path to temporary directory
         """
         self._temp_dir = temp_dir
-        logger.debug(f"Set temp directory to {temp_dir}")
+        logger.debug("Set temp directory to %s", temp_dir)
 
     @property
     def temp_dir(self) -> str | None:
@@ -64,9 +64,9 @@ class ADBService:
             for device in devices:
                 serial = device["serial"]
                 await self.adb.disconnect_device(serial)
-                logger.debug(f"Disconnected device {serial}")
+                logger.debug("Disconnected device %s", serial)
         except Exception as e:
-            logger.exception(f"Error disconnecting devices: {e}")
+            logger.exception("Error disconnecting devices: %s", e)
 
         logger.debug("ADBService cleanup complete")
 

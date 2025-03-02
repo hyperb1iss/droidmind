@@ -5,6 +5,7 @@ This module provides a wrapper around the system's ADB binary to interact with A
 """
 
 import asyncio
+from contextlib import AsyncExitStack
 import logging
 import os
 import re
@@ -35,18 +36,18 @@ class ADBWrapper:
 
         # Track connected devices (cached)
         self._devices_cache: list[dict[str, str]] = []
-        self._cache_time = 0
+        self._cache_time: float = 0.0
 
-        logger.debug(f"ADBWrapper initialized with binary: {self.adb_path}")
+        logger.debug("ADBWrapper initialized with binary: %s", self.adb_path)
 
     async def _run_adb_command(
-        self, args: list[str], timeout: float | None = None, check: bool = True
+        self, args: list[str], timeout_seconds: float | None = None, check: bool = True
     ) -> tuple[str, str]:
         """Run an ADB command and return stdout and stderr.
 
         Args:
             args: List of arguments to pass to ADB
-            timeout: Command timeout in seconds (None for no timeout)
+            timeout_seconds: Command timeout in seconds (None for no timeout)
             check: Whether to check return code and raise exception
 
         Returns:
@@ -58,7 +59,7 @@ class ADBWrapper:
         cmd = [self.adb_path, *args]
         cmd_str = " ".join(shlex.quote(arg) for arg in cmd)
 
-        logger.debug(f"Running ADB command: {cmd_str}")
+        logger.debug("Running ADB command: %s", cmd_str)
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -67,7 +68,13 @@ class ADBWrapper:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            async with AsyncExitStack() as stack:
+                if timeout_seconds is not None:
+                    # Use asyncio.timeout() for Python 3.11+
+                    # For earlier versions, we'd use asyncio.wait_for directly
+                    await stack.enter_async_context(asyncio.timeout(timeout_seconds))
+
+                stdout_bytes, stderr_bytes = await process.communicate()
 
             stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
             stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
@@ -79,29 +86,29 @@ class ADBWrapper:
 
             return stdout, stderr
 
-        except TimeoutError:
-            logger.exception(f"ADB command timed out after {timeout}s: {cmd_str}")
-            raise RuntimeError(f"ADB command timed out: {cmd_str}")
+        except TimeoutError as exc:
+            logger.exception("ADB command timed out after %ss: %s", timeout_seconds, cmd_str)
+            raise RuntimeError(f"ADB command timed out: {cmd_str}") from exc
 
         except Exception as e:
-            logger.exception(f"Error executing ADB command: {e}")
+            logger.exception("Error executing ADB command: %s", e)
             raise
 
     async def _run_adb_device_command(
-        self, serial: str, args: list[str], timeout: float | None = None, check: bool = True
+        self, serial: str, args: list[str], timeout_seconds: float | None = None, check: bool = True
     ) -> tuple[str, str]:
         """Run an ADB command for a specific device.
 
         Args:
             serial: Device serial number
             args: List of arguments to pass to ADB
-            timeout: Command timeout in seconds
+            timeout_seconds: Command timeout in seconds
             check: Whether to check return code
 
         Returns:
             Tuple of (stdout, stderr)
         """
-        return await self._run_adb_command(["-s", serial, *args], timeout, check)
+        return await self._run_adb_command(["-s", serial, *args], timeout_seconds, check)
 
     async def connect_device_tcp(self, host: str, port: int = 5555) -> str:
         """Connect to a device over TCP/IP.
@@ -121,19 +128,19 @@ class ADBWrapper:
         # Check if already connected
         devices = await self.get_devices()
         if any(d["serial"] == serial for d in devices):
-            logger.info(f"Device {serial} is already connected")
+            logger.info("Device %s is already connected", serial)
             return serial
 
         # Connect to the device
-        logger.info(f"Connecting to device at {host}:{port}")
-        stdout, _ = await self._run_adb_command(["connect", serial], timeout=self.connection_timeout)
+        logger.info("Connecting to device at %s:%s", host, port)
+        stdout, _ = await self._run_adb_command(["connect", serial], timeout_seconds=self.connection_timeout)
 
         if "connected" not in stdout.lower():
             error_msg = f"Failed to connect to {serial}: {stdout}"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
-        logger.info(f"Successfully connected to device {serial}")
+        logger.info("Successfully connected to device %s", serial)
 
         # Clear the device cache to force a refresh
         self._devices_cache = []
@@ -159,7 +166,7 @@ class ADBWrapper:
             return usb_devices[0]["serial"]
 
         except Exception as e:
-            logger.exception(f"Failed to connect to USB device: {e}")
+            logger.exception("Failed to connect to USB device: %s", e)
             return None
 
     async def disconnect_device(self, serial: str) -> bool:
@@ -174,7 +181,7 @@ class ADBWrapper:
         try:
             # Only TCP devices can be disconnected
             if ":" not in serial:
-                logger.warning(f"Cannot disconnect USB device {serial}")
+                logger.warning("Cannot disconnect USB device %s", serial)
                 return False
 
             stdout, _ = await self._run_adb_command(
@@ -186,14 +193,13 @@ class ADBWrapper:
             self._devices_cache = []
 
             if "disconnected" in stdout.lower():
-                logger.info(f"Disconnected from {serial}")
+                logger.info("Disconnected from %s", serial)
                 return True
-            else:
-                logger.warning(f"Device {serial} was not connected")
-                return False
+            logger.warning("Device %s was not connected", serial)
+            return False
 
         except Exception as e:
-            logger.exception(f"Error disconnecting from {serial}: {e}")
+            logger.exception("Error disconnecting from %s: %s", serial, e)
             return False
 
     async def get_devices(self) -> list[dict[str, str]]:
@@ -226,7 +232,7 @@ class ADBWrapper:
 
                 if status != "device":
                     # Skip unauthorized or offline devices
-                    logger.warning(f"Device {serial} is {status}, skipping")
+                    logger.warning("Device %s is %s, skipping", serial, status)
                     continue
 
                 # Create basic device info
@@ -256,9 +262,9 @@ class ADBWrapper:
                         )
                         if version_stdout.strip():
                             device_info["android_version"] = version_stdout.strip()
-                    except Exception:
+                    except (TimeoutError, RuntimeError, OSError) as e:
                         # Continue even if we can't get all properties
-                        pass
+                        logger.debug("Could not get all device properties for %s: %s", serial, e)
 
                 result.append(device_info)
 
@@ -269,7 +275,7 @@ class ADBWrapper:
             return result
 
         except Exception as e:
-            logger.exception(f"Error getting device list: {e}")
+            logger.exception("Error getting device list: %s", e)
             return self._devices_cache  # Return cached devices if available
 
     async def shell(self, serial: str, command: str) -> str:
@@ -308,8 +314,8 @@ class ADBWrapper:
             raise  # Re-raise ValueError for not connected
 
         except Exception as e:
-            logger.exception(f"Error executing command on {serial}: {e}")
-            raise RuntimeError(f"Command execution failed: {e!s}")
+            logger.exception("Error executing command on %s: %s", serial, e)
+            raise RuntimeError(f"Command execution failed: {e!s}") from e
 
     async def get_device_properties(self, serial: str) -> dict[str, str]:
         """Get all properties from a device.
@@ -340,7 +346,7 @@ class ADBWrapper:
             # Re-raise if device not connected
             raise
         except Exception as e:
-            logger.exception(f"Error getting properties from {serial}: {e}")
+            logger.exception("Error getting properties from %s: %s", serial, e)
             return {}
 
     async def get_device_property(self, serial: str, prop_name: str) -> str | None:
@@ -361,7 +367,7 @@ class ADBWrapper:
             stdout, _ = await self._run_adb_device_command(serial, ["shell", f"getprop {prop_name}"], check=False)
             return stdout.strip() if stdout else None
         except Exception as e:
-            logger.exception(f"Error getting property {prop_name} from {serial}: {e}")
+            logger.exception("Error getting property %s from %s: %s", prop_name, serial, e)
             return None
 
     async def install_app(
@@ -404,17 +410,16 @@ class ADBWrapper:
             stdout, stderr = await self._run_adb_device_command(
                 serial,
                 install_args,
-                timeout=120,  # Longer timeout for installation
+                timeout_seconds=120,  # Longer timeout for installation
             )
 
             if "success" in stdout.lower():
                 return f"Successfully installed {os.path.basename(apk_path)}"
-            else:
-                return f"Installation failed: {stdout or stderr}"
+            return f"Installation failed: {stdout or stderr}"
 
         except Exception as e:
-            logger.exception(f"Error installing app: {e}")
-            raise RuntimeError(f"Installation failed: {e!s}")
+            logger.exception("Error installing app: %s", e)
+            raise RuntimeError(f"Installation failed: {e!s}") from e
 
     async def push_file(self, serial: str, local_path: str, device_path: str) -> str:
         """Push a file to the device.
@@ -442,18 +447,18 @@ class ADBWrapper:
 
         try:
             # Execute push command
-            logger.info(f"Pushing {local_path} to {device_path} on {serial}")
+            logger.info("Pushing %s to %s on %s", local_path, device_path, serial)
             stdout, _ = await self._run_adb_device_command(
                 serial,
                 ["push", local_path, device_path],
-                timeout=60,  # Longer timeout for file transfer
+                timeout_seconds=60,  # Longer timeout for file transfer
             )
 
             return f"Successfully pushed {os.path.basename(local_path)} to {device_path}"
 
         except Exception as e:
-            logger.exception(f"Error pushing file to {serial}: {e}")
-            raise RuntimeError(f"File push failed: {e!s}")
+            logger.exception("Error pushing file to %s: %s", serial, e)
+            raise RuntimeError(f"File push failed: {e!s}") from e
 
     async def pull_file(self, serial: str, device_path: str, local_path: str) -> str:
         """Pull a file from the device.
@@ -483,18 +488,18 @@ class ADBWrapper:
                 os.makedirs(local_dir)
 
             # Execute pull command
-            logger.info(f"Pulling {device_path} from {serial} to {local_path}")
+            logger.info("Pulling %s from %s to %s", device_path, serial, local_path)
             stdout, _ = await self._run_adb_device_command(
                 serial,
                 ["pull", device_path, local_path],
-                timeout=60,  # Longer timeout for file transfer
+                timeout_seconds=60,  # Longer timeout for file transfer
             )
 
             return f"Successfully pulled {device_path} to {os.path.basename(local_path)}"
 
         except Exception as e:
-            logger.exception(f"Error pulling file from {serial}: {e}")
-            raise RuntimeError(f"File pull failed: {e!s}")
+            logger.exception("Error pulling file from %s: %s", serial, e)
+            raise RuntimeError(f"File pull failed: {e!s}") from e
 
     async def reboot_device(self, serial: str, mode: str = "normal") -> str:
         """Reboot the device.
@@ -523,7 +528,7 @@ class ADBWrapper:
 
         try:
             # Execute reboot command
-            logger.info(f"Rebooting {serial} into {mode} mode")
+            logger.info("Rebooting %s into %s mode", serial, mode)
 
             if mode == "normal":
                 await self._run_adb_device_command(serial, ["reboot"])
@@ -537,8 +542,8 @@ class ADBWrapper:
             return f"Device {serial} rebooting into {mode} mode"
 
         except Exception as e:
-            logger.exception(f"Error rebooting {serial}: {e}")
-            raise RuntimeError(f"Reboot failed: {e!s}")
+            logger.exception("Error rebooting %s: %s", serial, e)
+            raise RuntimeError(f"Reboot failed: {e!s}") from e
 
     async def capture_screenshot(self, serial: str, local_path: str | None = None) -> str:
         """Capture a screenshot from the device.
@@ -570,7 +575,7 @@ class ADBWrapper:
 
         try:
             # Take screenshot using screencap command
-            logger.info(f"Taking screenshot on {serial}")
+            logger.info("Taking screenshot on %s", serial)
             await self.shell(serial, f"screencap -p {device_path}")
 
             # Pull screenshot to local machine
@@ -582,8 +587,8 @@ class ADBWrapper:
             return local_path
 
         except Exception as e:
-            logger.exception(f"Error capturing screenshot from {serial}: {e}")
-            raise RuntimeError(f"Screenshot capture failed: {e!s}")
+            logger.exception("Error capturing screenshot from %s: %s", serial, e)
+            raise RuntimeError(f"Screenshot capture failed: {e!s}") from e
 
     async def list_apps(self, serial: str, system_apps: bool = False) -> list[dict[str, str]]:
         """List installed apps on the device.
@@ -633,7 +638,8 @@ class ADBWrapper:
                     label_match = re.search(r"label=(.*?)\s", label_result)
                     if label_match:
                         label = label_match.group(1)
-            except Exception:
+            except (TimeoutError, ValueError, RuntimeError) as e:
+                logger.debug("Could not get app label for %s: %s", package_name, e)
                 label = "Unknown"
 
             apps.append(
