@@ -1,11 +1,9 @@
 """Tests for the ADB wrapper module."""
 
-import os
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-from adb_shell.exceptions import AdbConnectionError
 import pytest
 import pytest_asyncio
 
@@ -17,28 +15,22 @@ class TestADBWrapper(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment."""
-        # Create a temporary directory for the ADB key
+        # Create a temporary directory for test files
         self.temp_dir = tempfile.mkdtemp(prefix="droidmind_test_")
-        self.adb_key_path = os.path.join(self.temp_dir, "adbkey")
 
-        # Patch the key generation and loading
-        self.keygen_patcher = patch("droidmind.adb.wrapper.keygen")
-        self.mock_keygen = self.keygen_patcher.start()
+        # Mock subprocess for ADB commands
+        self.subprocess_patcher = patch("asyncio.create_subprocess_exec")
+        self.mock_subprocess = self.subprocess_patcher.start()
 
-        self.signer_patcher = patch("droidmind.adb.wrapper.PythonRSASigner")
-        self.mock_signer = self.signer_patcher.start()
-        self.mock_signer.return_value = MagicMock()
-
-        # Create empty key files
-        with open(self.adb_key_path, "w") as f:
-            f.write("mock_private_key")
-        with open(f"{self.adb_key_path}.pub", "w") as f:
-            f.write("mock_public_key")
+        # Set up mock process
+        self.mock_process = AsyncMock()
+        self.mock_process.communicate = AsyncMock(return_value=(b"stdout", b"stderr"))
+        self.mock_process.returncode = 0
+        self.mock_subprocess.return_value = self.mock_process
 
     def tearDown(self):
         """Clean up test environment."""
-        self.keygen_patcher.stop()
-        self.signer_patcher.stop()
+        self.subprocess_patcher.stop()
 
         # Remove temporary directory
         import shutil
@@ -47,37 +39,12 @@ class TestADBWrapper(unittest.TestCase):
 
     def test_initialization(self):
         """Test ADBWrapper initialization."""
-        wrapper = ADBWrapper(adb_key_path=self.adb_key_path)
-
-        # Verify key loading
-        assert wrapper.adb_key_path == self.adb_key_path
-        self.mock_signer.assert_called_once_with("mock_public_key", "mock_private_key")
+        wrapper = ADBWrapper()
 
         # Verify defaults
         assert wrapper.connection_timeout == 10.0
         assert wrapper.auth_timeout == 1.0
-        assert wrapper._devices == {}
-
-    def test_ensure_adb_key_exists(self):
-        """Test ADB key generation if it doesn't exist."""
-        # Remove existing key
-        os.remove(self.adb_key_path)
-        os.remove(f"{self.adb_key_path}.pub")
-
-        # Mock the key generation to actually create the files
-        def mock_keygen_impl(path):
-            with open(path, "w") as f:
-                f.write("generated_private_key")
-            with open(f"{path}.pub", "w") as f:
-                f.write("generated_public_key")
-
-        self.mock_keygen.side_effect = mock_keygen_impl
-
-        # Initialize wrapper, should trigger key generation
-        ADBWrapper(adb_key_path=self.adb_key_path)
-
-        # Verify key generation
-        self.mock_keygen.assert_called_once_with(self.adb_key_path)
+        assert wrapper._devices_cache == []
 
 
 @pytest.mark.asyncio
@@ -87,152 +54,133 @@ class TestADBWrapperAsync:
     @pytest_asyncio.fixture
     async def wrapper(self, request):
         """Set up ADBWrapper for testing."""
-        with (
-            patch("droidmind.adb.wrapper.keygen"),
-            patch("droidmind.adb.wrapper.PythonRSASigner") as mock_signer,
-        ):
-            mock_signer.return_value = MagicMock()
+        # Create a temporary directory
+        temp_dir = tempfile.mkdtemp(prefix="droidmind_test_")
 
-            # Create a temporary directory for the ADB key
-            temp_dir = tempfile.mkdtemp(prefix="droidmind_test_")
-            adb_key_path = os.path.join(temp_dir, "adbkey")
+        # Mock subprocess for ADB commands
+        subprocess_patcher = patch("asyncio.create_subprocess_exec")
+        mock_subprocess = subprocess_patcher.start()
 
-            # Create empty key files
-            os.makedirs(os.path.dirname(adb_key_path), exist_ok=True)
-            with open(adb_key_path, "w") as f:
-                f.write("mock_private_key")
-            with open(f"{adb_key_path}.pub", "w") as f:
-                f.write("mock_public_key")
+        # Set up mock process
+        mock_process = AsyncMock()
+        mock_process.communicate = AsyncMock(return_value=(b"stdout", b"stderr"))
+        mock_process.returncode = 0
+        mock_subprocess.return_value = mock_process
 
-            wrapper = ADBWrapper(adb_key_path=adb_key_path)
+        # Create wrapper
+        wrapper = ADBWrapper()
 
-            # Add finalizer for cleanup
-            def cleanup():
-                import shutil
+        # Mock the get_devices method to return a connected device
+        wrapper.get_devices = AsyncMock(
+            return_value=[{"serial": "device1", "model": "Pixel 4", "android_version": "11"}]
+        )
 
-                shutil.rmtree(temp_dir)
+        # Add cleanup
+        def cleanup():
+            subprocess_patcher.stop()
+            import shutil
 
-            request.addfinalizer(cleanup)
+            shutil.rmtree(temp_dir)
 
-            return wrapper
+        request.addfinalizer(cleanup)
+        return wrapper
 
     async def test_connect_device_tcp(self, wrapper):
         """Test connecting to a device over TCP/IP."""
-        device_mock = MagicMock()
+        # Mock the ADB command output
+        wrapper._run_adb_command = AsyncMock(return_value=("connected to 192.168.1.100:5555", ""))
 
-        with (
-            patch("droidmind.adb.wrapper.AdbDeviceTcp") as mock_device_class,
-            patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread,
-        ):
-            mock_device_class.return_value = device_mock
+        # Call the method
+        result = await wrapper.connect_device_tcp("192.168.1.100", 5555)
 
-            # Test successful connection
-            serial = await wrapper.connect_device_tcp("192.168.1.100")
-
-            # Verify the AdbDeviceTcp was created correctly
-            mock_device_class.assert_called_once_with("192.168.1.100", 5555, default_transport_timeout_s=10.0)
-
-            # Verify connect was called with the right parameters
-            mock_to_thread.assert_called_once_with(device_mock.connect, rsa_keys=[wrapper.signer], auth_timeout_s=1.0)
-
-            # Verify the device was added to the connected devices
-            assert serial == "192.168.1.100:5555"
-            assert serial in wrapper._devices
-            assert wrapper._devices[serial] == device_mock
+        # Verify the result - the actual implementation returns just the serial
+        assert result == "192.168.1.100:5555"
+        wrapper._run_adb_command.assert_called_once_with(
+            ["connect", "192.168.1.100:5555"], timeout=wrapper.connection_timeout
+        )
 
     async def test_connect_device_tcp_error(self, wrapper):
-        """Test error handling when connecting to a device."""
-        with (
-            patch("droidmind.adb.wrapper.AdbDeviceTcp") as mock_device_class,
-            patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread,
-        ):
-            device_mock = MagicMock()
-            mock_device_class.return_value = device_mock
+        """Test error handling when connecting to a device over TCP/IP."""
+        # Mock the ADB command output for an error
+        wrapper._run_adb_command = AsyncMock(return_value=("failed to connect to 192.168.1.100:5555", ""))
 
-            # Simulate connection error
-            mock_to_thread.side_effect = AdbConnectionError("Connection failed")
+        # Call the method - should raise RuntimeError
+        with pytest.raises(RuntimeError) as excinfo:
+            await wrapper.connect_device_tcp("192.168.1.100", 5555)
 
-            # Test connection failure
-            with pytest.raises(AdbConnectionError):
-                await wrapper.connect_device_tcp("192.168.1.100")
-
-            # Verify the device was not added
-            assert wrapper._devices == {}
+        # Verify the error message
+        assert "Failed to connect" in str(excinfo.value)
+        wrapper._run_adb_command.assert_called_once_with(
+            ["connect", "192.168.1.100:5555"], timeout=wrapper.connection_timeout
+        )
 
     async def test_disconnect_device(self, wrapper):
         """Test disconnecting from a device."""
-        # Set up mock device
-        device_mock = MagicMock()
-        wrapper._devices = {"192.168.1.100:5555": device_mock}
+        # Mock the ADB command output
+        wrapper._run_adb_command = AsyncMock(return_value=("disconnected device1:5555", ""))
 
-        with patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
-            # Test successful disconnection
-            success = await wrapper.disconnect_device("192.168.1.100:5555")
-
-            # Verify disconnect was called
-            mock_to_thread.assert_called_once_with(device_mock.close)
-
-            # Verify the device was removed
-            assert success is True
-            assert wrapper._devices == {}
-
-    async def test_disconnect_device_not_connected(self, wrapper):
-        """Test disconnecting from a device that is not connected."""
-        # Test disconnecting a device that doesn't exist
-        success = await wrapper.disconnect_device("nonexistent:5555")
+        # Call the method with a TCP device (has a colon in the serial)
+        result = await wrapper.disconnect_device("device1:5555")
 
         # Verify the result
-        assert success is False
+        assert result is True
+        wrapper._run_adb_command.assert_called_once_with(["disconnect", "device1:5555"], check=False)
+
+    async def test_disconnect_device_not_connected(self, wrapper):
+        """Test disconnecting from a device that's not connected."""
+        # Call the method with a USB device (no colon in the serial)
+        result = await wrapper.disconnect_device("device1")
+
+        # Verify the result - should be False for USB devices
+        assert result is False
+        # No ADB command should be called for USB devices
 
     async def test_shell(self, wrapper):
         """Test running a shell command on a device."""
-        # Set up mock device
-        device_mock = MagicMock()
-        device_mock.shell = AsyncMock(return_value="command output")
-        wrapper._devices = {"192.168.1.100:5555": device_mock}
+        # Mock the ADB command output
+        wrapper._run_adb_device_command = AsyncMock(return_value=("command output", ""))
 
-        with patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
-            mock_to_thread.return_value = "command output"
+        # Mock the _run_adb_command to make the device appear connected
+        wrapper._run_adb_command = AsyncMock(return_value=("List of devices attached\ndevice1\tdevice", ""))
 
-            # Test running a shell command
-            output = await wrapper.shell("192.168.1.100:5555", "ls -la")
+        # Clear the devices cache to force a check
+        wrapper._devices_cache = []
 
-            # Verify shell was called with the right command
-            mock_to_thread.assert_called_once_with(device_mock.shell, "ls -la")
+        # Call the method
+        result = await wrapper.shell("device1", "ls -la")
 
-            # Verify the output
-            assert output == "command output"
+        # Verify the result
+        assert result == "command output"
+        wrapper._run_adb_device_command.assert_called_once_with("device1", ["shell", "ls -la"])
 
     async def test_shell_device_not_connected(self, wrapper):
-        """Test running a shell command on a device that is not connected."""
-        # Test running a command on a device that doesn't exist
-        with pytest.raises(ValueError):
-            await wrapper.shell("nonexistent:5555", "ls -la")
+        """Test running a shell command on a device that's not connected."""
+        # Override the get_devices mock to return no devices
+        wrapper.get_devices = AsyncMock(return_value=[])
+
+        # Call the method and expect an exception
+        with pytest.raises(ValueError) as excinfo:
+            await wrapper.shell("nonexistent", "ls -la")
+
+        # Verify the error message
+        assert "Device nonexistent not connected" in str(excinfo.value)
 
     async def test_get_device_properties(self, wrapper):
         """Test getting device properties."""
-        # Set up mock device
-        device_mock = MagicMock()
-        wrapper._devices = {"192.168.1.100:5555": device_mock}
+        # Mock the shell command output
+        wrapper.shell = AsyncMock(
+            return_value=(
+                "[ro.build.version.release]: [11]\n[ro.build.version.sdk]: [30]\n[ro.product.model]: [Pixel 4]\n"
+            )
+        )
 
-        # Mock getprop output
-        getprop_output = """
-[ro.build.version.release]: [11]
-[ro.build.version.sdk]: [30]
-[ro.product.model]: [Pixel 4]
-"""
+        # Call the method
+        result = await wrapper.get_device_properties("device1")
 
-        with patch.object(wrapper, "shell", new_callable=AsyncMock) as mock_shell:
-            mock_shell.return_value = getprop_output
-
-            # Test getting device properties
-            properties = await wrapper.get_device_properties("192.168.1.100:5555")
-
-            # Verify shell was called with getprop
-            mock_shell.assert_called_once_with("192.168.1.100:5555", "getprop")
-
-            # Verify the properties were parsed correctly
-            assert len(properties) == 3
-            assert properties["ro.build.version.release"] == "11"
-            assert properties["ro.build.version.sdk"] == "30"
-            assert properties["ro.product.model"] == "Pixel 4"
+        # Verify the result
+        assert result == {
+            "ro.build.version.release": "11",
+            "ro.build.version.sdk": "30",
+            "ro.product.model": "Pixel 4",
+        }
+        wrapper.shell.assert_called_once_with("device1", "getprop")

@@ -81,4 +81,3 @@ mcp = FastMCP(
 
 # Import tools and resources to register them with the MCP server
 # These imports must come after the mcp server creation to avoid circular imports
-
