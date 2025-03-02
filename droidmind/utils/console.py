@@ -1,7 +1,36 @@
 """
 Console utilities for DroidMind using the rich library for beautiful terminal output.
+
+This module provides a standardized way to format output for DroidMind. It works by:
+1. Using the 'rich' library for beautiful terminal output
+2. Routing all log messages through the proper Python logger
+3. Maintaining a consistent visual style across the application
+
+USAGE:
+    - For basic logging, use the provided functions like info(), warning(), error(), debug()
+      Examples:
+         console.info("Connected to device")  
+         console.error("Failed to connect")
+    
+    - For tables and other rich content, the functions will:
+      a) Display rich content to the console for user-friendly visualization
+      b) Also log a plain text message about the action via the logger
+      
+    - For the banner and purely visual elements, direct console printing is used
+
+IMPORTANT NOTE:
+    This module provides custom formatting methods not available in standard Python loggers 
+    (like header(), success(), etc). When making changes:
+    
+    - Use console.* for any custom formatted output (header, success, tables, etc)
+    - Use logger.* directly for standard log levels (info, warning, error, debug)
+    - NEVER try to call custom methods on the standard logger (e.g., logger.header() will fail!)
+
+The module uses a configured logger with a RichHandler, so all output will be 
+properly formatted, time-stamped, and can be filtered by log level.
 """
 
+import logging
 from typing import Any, Optional, List, Dict, Union
 
 from rich.console import Console
@@ -13,11 +42,14 @@ from rich.style import Style
 from rich.tree import Tree
 from rich.live import Live
 
-# Create a console with a custom theme for DroidMind
+# Create a console with a custom theme for DroidMind - for direct console operations
 console = Console(
     highlight=True,
     theme=None,  # Default theme works well
 )
+
+# Get the configured logger
+logger = logging.getLogger("droidmind")
 
 # Define styles for different types of messages
 styles = {
@@ -45,35 +77,40 @@ def print_banner() -> None:
     """
     android_txt = Text("Connect AI assistants to Android with MCP", style=styles["android"])
     
+    # This is a special case where we want visual output directly to console
+    # rather than through the logger for the banner
     console.print()
     console.print(Text(banner, style=styles["android"]))
     console.print(Panel(android_txt, border_style=styles["android"]))
     console.print()
+    
+    # Log that the banner was displayed at INFO level
+    logger.info("DroidMind server initialized")
 
 def info(message: str) -> None:
-    """Print an info message."""
-    console.print(f"[i] {message}", style=styles["info"])
+    """Log an info message."""
+    logger.info(f"[i] {message}")
 
 def success(message: str) -> None:
-    """Print a success message."""
-    console.print(f"[✓] {message}", style=styles["success"])
+    """Log a success message."""
+    logger.info(f"[✓] {message}")
 
 def warning(message: str) -> None:
-    """Print a warning message."""
-    console.print(f"[!] {message}", style=styles["warning"])
+    """Log a warning message."""
+    logger.warning(f"[!] {message}")
 
 def error(message: str) -> None:
-    """Print an error message."""
-    console.print(f"[✗] {message}", style=styles["error"])
+    """Log an error message."""
+    logger.error(f"[✗] {message}")
 
 def debug(message: str) -> None:
-    """Print a debug message."""
-    console.print(f"[DEBUG] {message}", style=styles["debug"])
+    """Log a debug message."""
+    logger.debug(f"[DEBUG] {message}")
 
 def header(message: str) -> None:
-    """Print a section header."""
-    console.print(f"\n{message}", style=styles["header"])
-    console.print("=" * len(message), style=styles["header"])
+    """Log a section header."""
+    logger.info(f"\n{message}")
+    logger.info("=" * len(message))
 
 def device_table(devices: List[Dict[str, str]]) -> None:
     """Print a table of connected devices."""
@@ -95,7 +132,10 @@ def device_table(devices: List[Dict[str, str]]) -> None:
             device.get("android_version", "unknown")
         )
     
+    # For tables and other rich content, we still want to use console.print
+    # for direct visualization, but also log that the table was displayed
     console.print(table)
+    logger.info(f"Displayed device table with {len(devices)} device(s)")
 
 def property_table(properties: Dict[str, str], title: str = "Device Properties") -> None:
     """Print a table of device properties."""
@@ -110,15 +150,26 @@ def property_table(properties: Dict[str, str], title: str = "Device Properties")
     for key, value in properties.items():
         table.add_row(key, value)
     
+    # For tables and other rich content, we still want to use console.print
+    # for direct visualization, but also log that the table was displayed
     console.print(table)
+    logger.info(f"Displayed property table with {len(properties)} properties")
 
 def command_output(command: str, output: str) -> None:
     """Print command and its output."""
+    # Log the command execution
+    logger.info(f"Executed command: {command}")
+    
+    # For command output visualization, use console directly
     console.print(f"$ {command}", style=styles["command"])
     console.print(output)
 
 def progress_context(description: str = "Processing..."):
     """Context manager for showing progress during operations."""
+    # Log the start of a progress operation
+    logger.debug(f"Starting progress operation: {description}")
+    
+    # Return the progress context for visualization
     return Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -149,5 +200,8 @@ def create_device_tree(device_info: Dict[str, Any]) -> Tree:
         feats = tree.add("Features", style="blue")
         for feature in device_info["features"]:
             feats.add(f"[green]{feature}[/green]")
+    
+    # Log that we created a device tree
+    logger.debug(f"Created device tree for {serial}")
     
     return tree 

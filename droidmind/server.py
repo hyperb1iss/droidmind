@@ -8,6 +8,9 @@ import os
 import asyncio
 import logging
 import tempfile
+import signal
+import sys
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,7 +33,7 @@ from droidmind.utils import console
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(message)s",
     datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True)]
@@ -49,11 +52,11 @@ class DroidMindContext:
 async def droidmind_lifespan(server: FastMCP) -> AsyncIterator[DroidMindContext]:
     """Initialize and clean up DroidMind resources."""
     # Don't print banner here - it's already printed at server startup
-    console.info("Initializing DroidMind session...")
+    logger.info("Initializing DroidMind session...")
     
     # Create temporary directory
     temp_dir = tempfile.mkdtemp(prefix="droidmind_")
-    console.info(f"Created temporary directory: {temp_dir}")
+    logger.info(f"Created temporary directory: {temp_dir}")
     
     # Initialize ADB wrapper
     adb = ADBWrapper()
@@ -64,7 +67,7 @@ async def droidmind_lifespan(server: FastMCP) -> AsyncIterator[DroidMindContext]
         
     finally:
         # Clean up
-        console.info("Shutting down DroidMind session...")
+        logger.info("Shutting down DroidMind session...")
         
         # Disconnect all devices
         devices = await adb.get_devices()
@@ -76,7 +79,7 @@ async def droidmind_lifespan(server: FastMCP) -> AsyncIterator[DroidMindContext]
         import shutil
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
-            console.info(f"Removed temporary directory: {temp_dir}")
+            logger.info(f"Removed temporary directory: {temp_dir}")
 
 
 # Create the MCP server
@@ -261,9 +264,7 @@ async def list_directory(serial: str, path: str) -> str:
     Returns:
         Directory listing
     """
-    from mcp.server.fastmcp import get_request_context
-    ctx = get_request_context()
-    return await _list_directory_impl(serial, path, ctx)
+    return await _list_directory_impl(serial, path)
 
 async def _list_directory_impl(serial: str, path: str, ctx: Context) -> str:
     """Implementation function for list_directory that can be called directly by tests."""
@@ -658,17 +659,28 @@ def setup_sse_server(host: str, port: int, debug: bool = False):
     # Set up SSE transport
     sse = SseServerTransport("/messages/")
     
+    # Track active connections for proper cleanup
+    active_connections = set()
+    
     async def handle_sse(request):
         """Handle SSE connection."""
         async with sse.connect_sse(
             request.scope, request.receive, request._send
         ) as streams:
-            # The run method expects a transport type, not the streams directly
-            await mcp._mcp_server.run(
-                streams[0],
-                streams[1],
-                mcp._mcp_server.create_initialization_options(),
-            )
+            # Add connection to active set
+            connection_id = id(streams)
+            active_connections.add(connection_id)
+            try:
+                # The run method expects a transport type, not the streams directly
+                await mcp._mcp_server.run(
+                    streams[0],
+                    streams[1],
+                    mcp._mcp_server.create_initialization_options(),
+                )
+            finally:
+                # Remove connection from active set when done
+                if connection_id in active_connections:
+                    active_connections.remove(connection_id)
     
     async def handle_index(request):
         """Serve the index page with server info."""
@@ -817,7 +829,18 @@ def setup_sse_server(host: str, port: int, debug: bool = False):
             "port": port
         })
     
-    # Create Starlette app with CORS middleware
+    # Create Starlette app with CORS middleware and lifespan
+    async def lifespan(app):
+        # Setup
+        yield
+        # Cleanup on shutdown
+        logger.info("Cleaning up SSE connections...")
+        # Clear active connections to prevent hanging
+        active_connections.clear()
+        # Give tasks a moment to clean up
+        await asyncio.sleep(0.5)
+    
+    # CORS middleware
     middleware = [
         Middleware(
             CORSMiddleware,
@@ -836,12 +859,13 @@ def setup_sse_server(host: str, port: int, debug: bool = False):
             Route("/sse", endpoint=handle_sse),
             Mount("/messages/", app=sse.handle_post_message),
         ],
+        lifespan=lifespan
     )
     
     # Display server information
     interfaces = get_available_interfaces()
     
-    console.info("Server is ready! 🚀")
+    logger.info("Server is ready! 🚀")
     console.header("Network Information")
     
     if host == "0.0.0.0":
@@ -852,16 +876,16 @@ def setup_sse_server(host: str, port: int, debug: bool = False):
                 console.success(f"Interface {name}: {url}")
         
         # Also show localhost for local connections
-        console.info(f"Local access: http://localhost:{port}")
+        logger.info(f"Local access: http://localhost:{port}")
         
         # Show MCP URL for AI assistants
         console.header("MCP Connection URL")
-        console.info("Use this URL to connect AI assistants:")
+        logger.info("Use this URL to connect AI assistants:")
         for name, ip in interfaces:
             if not ip.startswith("127."):
                 mcp_url = f"sse://{ip}:{port}/sse"
                 console.success(f"MCP URL ({name}): {mcp_url}")
-        console.info(f"Local MCP URL: sse://localhost:{port}/sse")
+        logger.info(f"Local MCP URL: sse://localhost:{port}/sse")
     else:
         # When binding to a specific interface, just show that one
         url = f"http://{host}:{port}"
@@ -869,17 +893,73 @@ def setup_sse_server(host: str, port: int, debug: bool = False):
         
         # Show MCP URL for AI assistants
         console.header("MCP Connection URL")
-        console.info("Use this URL to connect AI assistants:")
+        logger.info("Use this URL to connect AI assistants:")
         mcp_url = f"sse://{host}:{port}/sse"
         console.success(f"MCP URL: {mcp_url}")
     
-    # Start the server
-    uvicorn.run(
+    # Create a server instance that we can access for shutdown
+    config = uvicorn.Config(
         app,
         host=host,
         port=port,
         log_level="debug" if debug else "info"
     )
+    server = uvicorn.Server(config)
+    
+    # Set up signal handlers for graceful shutdown
+    def handle_exit(signum, frame):
+        logger.info(f"Received signal {signal.Signals(signum).name}, initiating graceful shutdown with task debug...")
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+        
+        async def debug_tasks():
+            for i in range(5):  # print active tasks for 5 seconds
+                logger.info(f"[DEBUG TASKS] Snapshot {i+1} - Active tasks:")
+                tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
+                if not tasks:
+                    logger.info("[DEBUG TASKS] No active tasks found.")
+                for t in tasks:
+                    try:
+                        task_name = t.get_name()
+                    except AttributeError:
+                        task_name = str(t)
+                    logger.info(f"Task: {task_name}, Done: {t.done()}")
+                    stack = t.get_stack(limit=3)
+                    if stack:
+                        for frame in stack:
+                            logger.info(f"  at {frame.f_code.co_filename}:{frame.f_lineno}")
+                    else:
+                        logger.info("  No stack available.")
+                await asyncio.sleep(1)
+        
+        loop.create_task(debug_tasks())
+        # Delay shutdown to allow debug_tasks to run for 5 seconds
+        loop.call_later(5, lambda: setattr(server, 'should_exit', True))
+
+    # Register signal handlers
+    signal.signal(signal.SIGINT, handle_exit)  # Ctrl+C
+    signal.signal(signal.SIGTERM, handle_exit)  # Termination request
+    
+    # Start the server with graceful shutdown support
+    logger.info("Press Ctrl+C to exit")
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, exiting...")
+    finally:
+        # Make sure we clean up
+        logger.info("Cleaning up resources...")
+        # Force exit if we're still hanging after 3 seconds
+        def force_exit():
+            logger.warning("Server shutdown taking too long, forcing exit...")
+            os._exit(0)
+        
+        # Schedule force exit after 3 seconds
+        force_timer = threading.Timer(3.0, force_exit)
+        force_timer.daemon = True
+        force_timer.start()
 
 
 # Main entrypoint
@@ -922,20 +1002,22 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str):
     # Configure logging level - debug takes precedence over log_level
     if debug:
         logging.getLogger("droidmind").setLevel(logging.DEBUG)
+        logging.getLogger("uvicorn.access").setLevel(logging.DEBUG)
+        logging.getLogger("uvicorn.error").setLevel(logging.DEBUG)
         log_level = "DEBUG"  # Override log_level for display purposes
     else:
         logging.getLogger("droidmind").setLevel(getattr(logging, log_level))
     
     # Display beautiful welcome message with server info
     console.print_banner()
-    console.info("Starting DroidMind MCP server...")
+    logger.info("Starting DroidMind MCP server...")
     
     # Validate host
     try:
         ipaddress.ip_address(host)
     except ValueError:
         if host != "localhost":
-            console.warning(f"Invalid host address: {host}. Using localhost instead.")
+            logger.warning(f"Invalid host address: {host}. Using localhost instead.")
             host = "127.0.0.1"
     
     # Display server configuration
@@ -954,16 +1036,28 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str):
     )
     rprint(config_table)
     
+    # Set up signal handlers for stdio mode
+    def handle_stdio_exit(signum, frame):
+        logger.info(f"Received signal {signal.Signals(signum).name}, shutting down gracefully...")
+        # Exit normally
+        sys.exit(0)
+    
+    # Register signal handlers
+    signal.signal(signal.SIGINT, handle_stdio_exit)
+    signal.signal(signal.SIGTERM, handle_stdio_exit)
+    
     # Start server based on transport mode
     if transport == "sse":
         # Start SSE server
-        console.info(f"Starting DroidMind with SSE transport on {host}:{port}")
+        logger.info(f"Starting DroidMind with SSE transport on {host}:{port}")
         setup_sse_server(host, port, debug)
     else:
         # Use stdio transport for terminal use
-        console.info("Starting DroidMind with stdio transport")
+        logger.info("Starting DroidMind with stdio transport")
         import anyio
         from mcp.server.stdio import stdio_server
+        
+        logger.info("Press Ctrl+C to exit")
         
         async def arun():
             async with stdio_server() as streams:

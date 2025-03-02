@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "mcp[cli]>=1.3.0",
+    "mcp[cli,sse]>=1.3.0",
     "adb-shell[async]>=0.4.4",
     "rich>=13.9.4",
     "pytest>=8.3.4",
