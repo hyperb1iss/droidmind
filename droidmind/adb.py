@@ -38,7 +38,7 @@ class ADBWrapper:
         self._devices_cache: list[dict[str, str]] = []
         self._cache_time: float = 0.0
 
-        logger.debug("ADBWrapper initialized with binary: %s", self.adb_path)
+        logger.debug("ADBWrapper initialized with binary path: %s", self.adb_path)
 
     async def _run_adb_command(
         self, args: list[str], timeout_seconds: float | None = None, check: bool = True
@@ -57,6 +57,7 @@ class ADBWrapper:
             RuntimeError: If command fails and check=True
         """
         cmd = [self.adb_path, *args]
+        logger.debug("Using ADB path for command: %s", self.adb_path)
         cmd_str = " ".join(shlex.quote(arg) for arg in cmd)
 
         logger.debug("Running ADB command: %s", cmd_str)

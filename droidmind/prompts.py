@@ -7,7 +7,7 @@ allowing AI assistants to have pre-defined interaction patterns.
 
 import logging
 
-from droidmind.core import mcp
+from droidmind.context import mcp
 
 logger = logging.getLogger("droidmind")
 

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 
-from droidmind.adb.wrapper import ADBWrapper
+from droidmind.adb import ADBWrapper
 
 
 class TestADBWrapper(unittest.TestCase):

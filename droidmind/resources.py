@@ -10,7 +10,7 @@ Resources are like read-only endpoints that expose data to the AI assistant.
 import logging
 
 from droidmind.context import mcp
-from droidmind.devices import DeviceManager
+from droidmind.devices import get_device_manager
 
 logger = logging.getLogger("droidmind")
 
@@ -23,7 +23,7 @@ async def get_devices_list() -> str:
     Returns:
         A markdown-formatted list of connected devices
     """
-    devices = await DeviceManager.list_devices()
+    devices = await get_device_manager().list_devices()
 
     if not devices:
         return "No devices connected."

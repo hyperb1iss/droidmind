@@ -22,6 +22,7 @@ from starlette.routing import Mount, Route
 import uvicorn
 
 from droidmind.context import mcp
+from droidmind.devices import DeviceManager, set_device_manager
 
 from . import console
 
@@ -48,7 +49,13 @@ logger = logging.getLogger("droidmind")
     default="INFO",
     help="Set the logging level",
 )
-def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> None:
+@click.option(
+    "--adb-path",
+    type=str,
+    default=None,
+    help="Path to the ADB binary (uses auto-detection if not specified)",
+)
+def main(host: str, port: int, transport: str, debug: bool, log_level: str, adb_path: str | None) -> None:
     """
     DroidMind MCP Server - Control Android devices with AI assistants.
 
@@ -65,6 +72,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
         "port": port,
         "debug": debug,
         "log_level": log_level if not debug else "DEBUG",
+        "adb_path": adb_path or "auto-detected",
     }
 
     # Validate host before showing config
@@ -97,13 +105,17 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
         uvicorn_logger.handlers = [handler]
         uvicorn_logger.propagate = False
 
+    # Initialize the global device manager with the specified ADB path
+    set_device_manager(DeviceManager(adb_path=adb_path))
+    logger.debug("Global device manager initialized with ADB path: %s", adb_path or "auto-detected")
+
     if transport == "sse":
         # Define middleware to suppress 'NoneType object is not callable' errors during shutdown
         class SuppressNoneTypeErrorMiddleware:
-            def __init__(self, app):
+            def __init__(self, app: Any) -> None:
                 self.app = app
 
-            async def __call__(self, scope, receive, send):
+            async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
                 try:
                     await self.app(scope, receive, send)
                 except TypeError as e:
@@ -147,14 +159,15 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
         )
 
         # Create a custom Uvicorn config with our shutdown handler
-        config = uvicorn.Config(
+        uvicorn_config = uvicorn.Config(
             app,
             host=cast(str, config["host"]),
             port=cast(int, config["port"]),
             log_config=None,
             timeout_graceful_shutdown=0,  # Shutdown immediately
         )
-        server = uvicorn.Server(config)
+        # Create server with the Config object
+        server = uvicorn.Server(uvicorn_config)
 
         try:
             asyncio.run(server.serve())
@@ -182,4 +195,4 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
 
 
 if __name__ == "__main__":
-    main(host="127.0.0.1", port=8000, transport="stdio", debug=False, log_level="INFO")
+    main(host="127.0.0.1", port=8000, transport="stdio", debug=False, log_level="INFO", adb_path="adb")

@@ -69,6 +69,8 @@ addopts = """
     -v
     --tb=short
 """
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 # Type checking configuration
 [tool.mypy]
@@ -306,6 +308,7 @@ disable = [
     "unused-variable",
     "wrong-import-position",
     "import-outside-toplevel",
+    "too-many-positional-arguments",
     "fixme",
 
     # Additional suppressions for practicality

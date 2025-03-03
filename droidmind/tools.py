@@ -17,7 +17,7 @@ import re
 from mcp.server.fastmcp import Context, Image
 
 from droidmind.context import mcp
-from droidmind.devices import DeviceManager
+from droidmind.devices import get_device_manager
 
 logger = logging.getLogger("droidmind")
 
@@ -31,7 +31,7 @@ async def devicelist(ctx: Context) -> str:
         A formatted list of connected devices with their basic information.
     """
     try:
-        devices = await DeviceManager.list_devices()
+        devices = await get_device_manager().list_devices()
 
         if not devices:
             return "No devices connected. Use the connect_device tool to connect to a device."
@@ -49,8 +49,8 @@ async def devicelist(ctx: Context) -> str:
 
         return result
     except Exception as e:
-        logger.exception("Error listing devices: %s", e)
-        return f"Error listing devices: {e!s}"
+        logger.exception("Error in devicelist: %s", e)
+        return f"Error listing devices: {e}"
 
 
 @mcp.tool()
@@ -65,7 +65,7 @@ async def device_properties(serial: str, ctx: Context) -> str:
         Formatted device properties as text
     """
     try:
-        device = await DeviceManager.get_device(serial)
+        device = await get_device_manager().get_device(serial)
 
         if not device:
             return f"Device {serial} not found or not connected."
@@ -115,7 +115,7 @@ async def device_logcat(serial: str, ctx: Context) -> str:
         Recent logcat entries
     """
     try:
-        device = await DeviceManager.get_device(serial)
+        device = await get_device_manager().get_device(serial)
 
         if not device:
             return f"Device {serial} not found or not connected."
@@ -144,7 +144,7 @@ async def list_directory(serial: str, path: str, ctx: Context) -> str:
         Directory listing
     """
     try:
-        device = await DeviceManager.get_device(serial)
+        device = await get_device_manager().get_device(serial)
 
         if not device:
             return f"Device {serial} not found or not connected."
@@ -184,7 +184,7 @@ async def connect_device(ctx: Context, ip_address: str, port: int = 5555) -> str
 
     try:
         # Attempt to connect to the device
-        device = await DeviceManager.connect(ip_address, port)
+        device = await get_device_manager().connect(ip_address, port)
 
         if device:
             model = await device.model
@@ -219,7 +219,7 @@ async def disconnect_device(serial: str, ctx: Context) -> str:
     """
     try:
         await ctx.info(f"Disconnecting from device {serial}...")
-        success = await DeviceManager.disconnect(serial)
+        success = await get_device_manager().disconnect(serial)
 
         if success:
             return f"Successfully disconnected from device {serial}"
@@ -243,7 +243,7 @@ async def shell_command(serial: str, command: str, ctx: Context) -> str:
         Command output
     """
     try:
-        device = await DeviceManager.get_device(serial)
+        device = await get_device_manager().get_device(serial)
 
         if not device:
             return f"Error: Device {serial} not connected or not found."
@@ -286,7 +286,7 @@ async def install_app(
         if not os.path.isfile(apk_path):
             return f"Error: APK file not found at {apk_path}"
 
-        device = await DeviceManager.get_device(serial)
+        device = await get_device_manager().get_device(serial)
 
         if not device:
             return f"Error: Device {serial} not connected or not found."
@@ -321,7 +321,7 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
         return f"Invalid reboot mode: {mode}. Must be one of: {', '.join(valid_modes)}"
 
     try:
-        device = await DeviceManager.get_device(serial)
+        device = await get_device_manager().get_device(serial)
 
         if not device:
             return f"Error: Device {serial} not connected or not found."
@@ -349,7 +349,7 @@ async def screenshot(serial: str, ctx: Context) -> Image:
     """
     try:
         # Get the device
-        device = await DeviceManager.get_device(serial)
+        device = await get_device_manager().get_device(serial)
         if not device:
             await ctx.error(f"Device {serial} not connected or not found.")
             return Image(data=b"", format="png")
