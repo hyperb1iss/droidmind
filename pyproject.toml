@@ -18,13 +18,10 @@ classifiers = [
 dependencies = [
     # Core MCP protocol
     "mcp[cli]>=1.3.0",
-    # Android device communication
-    "adb-shell[async]>=0.4.4",
     # UI and display
     "rich>=13.9.4",
     # Networking and HTTP
     "httpx>=0.28.1",
-    "netifaces>=0.11.0",
     # Server components
     "sse-starlette>=2.2.1",
     "starlette>=0.46.0",
