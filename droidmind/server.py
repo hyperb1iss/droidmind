@@ -13,6 +13,7 @@ from typing import Any, cast
 import anyio
 import click
 from mcp.server.sse import SseServerTransport
+from rich.logging import RichHandler
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
@@ -20,8 +21,9 @@ from starlette.requests import Request
 from starlette.routing import Mount, Route
 import uvicorn
 
-from droidmind.mcp_instance import mcp
-from droidmind.utils import console
+from droidmind.context import mcp
+
+from . import console
 
 logger = logging.getLogger("droidmind")
 
@@ -76,8 +78,8 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
     # Display beautiful configuration with NeonGlam aesthetic
     console.display_system_info(config)
 
-    # Configure logging using our ultimate NeonGlam config from console.py
-    handler = console.create_custom_handler()
+    # Configure logging using Rich
+    handler = RichHandler(console=console.console, rich_tracebacks=True)
     logging.basicConfig(
         level=getattr(logging, str(config["log_level"])),
         format="%(message)s",

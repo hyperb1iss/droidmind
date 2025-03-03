@@ -16,8 +16,8 @@ import re
 
 from mcp.server.fastmcp import Context, Image
 
+from droidmind.context import mcp
 from droidmind.devices import DeviceManager
-from droidmind.mcp_instance import mcp
 
 logger = logging.getLogger("droidmind")
 

@@ -9,8 +9,8 @@ Resources are like read-only endpoints that expose data to the AI assistant.
 
 import logging
 
+from droidmind.context import mcp
 from droidmind.devices import DeviceManager
-from droidmind.mcp_instance import mcp
 
 logger = logging.getLogger("droidmind")
 

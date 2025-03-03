@@ -6,7 +6,7 @@ to allow AI assistants to control and interact with Android devices.
 """
 
 # Import core modules to register resources and tools
-from droidmind.mcp_instance import mcp
+from droidmind.context import mcp
 import droidmind.resources  # Imported for side effects
 import droidmind.tools  # Imported for side effects
 
