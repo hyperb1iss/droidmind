@@ -5,6 +5,7 @@ This module implements the command-line interface and server startup for DroidMi
 It delegates core functionality to specialized modules.
 """
 
+import asyncio
 import ipaddress
 import logging
 from typing import Any, cast
@@ -95,27 +96,47 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
         uvicorn_logger.propagate = False
 
     if transport == "sse":
+        # Define middleware to suppress 'NoneType object is not callable' errors during shutdown
+        class SuppressNoneTypeErrorMiddleware:
+            def __init__(self, app):
+                self.app = app
+
+            async def __call__(self, scope, receive, send):
+                try:
+                    await self.app(scope, receive, send)
+                except TypeError as e:
+                    if "NoneType" in str(e) and "not callable" in str(e):
+                        pass
+                    else:
+                        raise
+
         # Set up SSE transport
         sse = SseServerTransport("/messages/")
 
         async def handle_sse(request: Request) -> None:
             async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
-                await mcp._mcp_server.run(
-                    streams[0],
-                    streams[1],
-                    mcp._mcp_server.create_initialization_options(),
-                )
+                try:
+                    await mcp._mcp_server.run(
+                        streams[0],
+                        streams[1],
+                        mcp._mcp_server.create_initialization_options(),
+                    )
+                except asyncio.CancelledError:
+                    logger.debug("ASGI connection cancelled, shutting down quietly.")
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("ASGI connection ended with exception: %s", e)
 
-        # Create Starlette app with CORS middleware
+        # Create Starlette app with custom middleware including our suppressor and CORS
         app = Starlette(
             debug=debug,
             middleware=[
+                Middleware(SuppressNoneTypeErrorMiddleware),
                 Middleware(
                     CORSMiddleware,
                     allow_origins=["*"],
                     allow_methods=["GET", "POST"],
                     allow_headers=["*"],
-                )
+                ),
             ],
             routes=[
                 Route("/sse", endpoint=handle_sse),
@@ -123,8 +144,23 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
             ],
         )
 
-        # Run the server
-        uvicorn.run(app, host=cast(str, config["host"]), port=cast(int, config["port"]), log_config=None)
+        # Create a custom Uvicorn config with our shutdown handler
+        config = uvicorn.Config(
+            app,
+            host=cast(str, config["host"]),
+            port=cast(int, config["port"]),
+            log_config=None,
+            timeout_graceful_shutdown=0,  # Shutdown immediately
+        )
+        server = uvicorn.Server(config)
+
+        try:
+            asyncio.run(server.serve())
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt received, shutting down gracefully.")
+        except Exception as e:
+            logger.exception("Server encountered exception during shutdown: %s", e)
+
     else:
         # Use stdio transport for terminal use
         logger.info("Using stdio transport for terminal interaction")
@@ -144,10 +180,4 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
 
 
 if __name__ == "__main__":
-    main(
-        host="127.0.0.1",
-        port=8000,
-        transport="stdio",
-        debug=False,
-        log_level="INFO"
-    )
+    main(host="127.0.0.1", port=8000, transport="stdio", debug=False, log_level="INFO")

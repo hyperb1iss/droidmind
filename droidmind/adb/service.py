@@ -58,16 +58,8 @@ class ADBService:
 
     async def cleanup(self) -> None:
         """Clean up the ADB service resources."""
-        # Disconnect all devices
-        try:
-            devices = await self.adb.get_devices()
-            for device in devices:
-                serial = device["serial"]
-                await self.adb.disconnect_device(serial)
-                logger.debug("Disconnected device %s", serial)
-        except Exception as e:
-            logger.exception("Error disconnecting devices: %s", e)
-
+        # Skip disconnecting devices during shutdown
+        logger.debug("Skipping ADB device disconnections during shutdown.")
         logger.debug("ADBService cleanup complete")
 
     # Delegation methods to expose ADB functionality via the service
