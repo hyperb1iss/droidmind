@@ -1,22 +1,30 @@
-# DroidMind 🤖 ✨
+# ✨ DroidMind 🤖
 
-Control Android devices with AI assistants using the Model Context Protocol (MCP).
+<div align="center">
 
-DroidMind is a powerful bridge between AI assistants and Android devices, enabling control, debugging, and analysis through natural language. By implementing the Model Context Protocol (MCP), DroidMind allows AI models to directly interact with Android devices via ADB.
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-9D00FF.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-Apache_2.0-FF00FF.svg?style=for-the-badge)](LICENSE)
+[![Status](https://img.shields.io/badge/status-active_development-39FF14.svg?style=for-the-badge)](docs/plan.md)
+[![Code Style](https://img.shields.io/badge/code_style-ruff-00FFFF.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
+[![Type Check](https://img.shields.io/badge/type_check-mypy-FFBF00.svg?style=for-the-badge)](https://mypy.readthedocs.io/en/stable/)
 
-![DroidMind Banner](docs/images/banner.png)
+**Control Android devices with AI through the Model Context Protocol**
 
-## ✨ Current Features
+</div>
 
-- 📱 **Device Control**: Connect to Android devices over ADB and execute commands
-- 📊 **System Analysis**: Inspect device properties and system logs
-- 🔍 **File System Access**: Browse directory contents on connected devices
-- 📷 **Screenshots**: Capture device screens for visual analysis and debugging
-- 📦 **App Installation**: Install applications on connected devices
-- 🔄 **Device Management**: Reboot devices and manage connections
-- 💬 **MCP Integration**: Seamless connection to AI assistants through the Model Context Protocol
+DroidMind is a powerful bridge between AI assistants and Android devices, enabling control, debugging, and system analysis through natural language. By implementing the Model Context Protocol (MCP), DroidMind allows AI models to directly interact with Android devices via ADB in a secure, structured way. When used as part of an agentic coding
+workflow, DroidMind can enable your assistant to build and debug with your device directly in the loop.
 
-DroidMind is very much still a work in progress and better packaging and documentation is coming soon!!
+## 💫 Features
+
+- 📱 **Device Control** - Connect to devices over USB or TCP/IP, run shell commands, reboot
+- 📊 **System Analysis** - Inspect device properties, view hardware info, analyze system logs  
+- 🔍 **File System Access** - Browse directory contents and manage files on devices
+- 📷 **Visual Diagnostics** - Capture device screenshots for analysis and debugging
+- 📦 **App Management** - Install applications on connected devices
+- 🔄 **Multi-Device Support** - Control and switch between multiple connected devices
+- 🌈 **NeonGlam Console** - Enjoy an aesthetic terminal experience
+- 💬 **MCP Integration** - Seamless connection to Claude, Cursor, Cline, and more
 
 ## 🚀 Installation
 
@@ -36,30 +44,23 @@ uv sync
 ## 📋 Prerequisites
 
 - Python 3.13 or higher
-- UV package manager (recommended)
-- Android device with ADB enabled
+- Android device with USB debugging enabled
+- ADB (Android Debug Bridge) installed and in PATH
+- UV package manager (recommended for dependency management)
 - For network control: Android device with ADB over TCP/IP enabled
 
-## 🔧 Quick Start
+## 🔮 Quick Start
 
-### Terminal Mode (stdio)
+### Run the DroidMind server
 
-```bash
-# Start DroidMind in terminal mode
-droidmind
-
-# Then connect to a device
-> connect_device --ip_address 192.168.1.100 --port 5555
-```
-
-### Network Mode (SSE)
+Run DroidMind as a server to connect AI assistants via MCP:
 
 ```bash
 # Start DroidMind as a network server
 droidmind --transport sse --host 0.0.0.0 --port 8000
 ```
 
-### Using with Claude
+### Using with AI Assistants
 
 1. Start DroidMind in SSE mode:
 
@@ -67,29 +68,15 @@ droidmind --transport sse --host 0.0.0.0 --port 8000
    droidmind --transport sse --host 0.0.0.0 --port 8000
    ```
 
-2. Connect Claude using the MCP protocol URI:
+2. Connect your AI assistant using the MCP protocol URI:
 
    ```
    sse://your-ip-address:8000/sse
    ```
 
-3. Claude can now control your Android devices through natural language!
-
-## 📱 Preparing Android Devices
-
-To use your Android device with DroidMind, you need to enable ADB debugging:
-
-1. Enable Developer Options by tapping 7 times on the Build Number in Settings
-2. Enable USB Debugging in Developer Options
-3. For network control, enable ADB over TCP/IP:
-   ```bash
-   adb tcpip 5555
-   ```
-4. Get your device's IP address from Settings > About Phone > Status > IP Address
+3. The AI can now control your Android devices through natural language!
 
 ## 🛠️ Available MCP Resources and Tools
-
-DroidMind currently provides these MCP resources and tools:
 
 ### Resources
 
@@ -100,29 +87,42 @@ DroidMind currently provides these MCP resources and tools:
 
 ### Tools
 
-- `connect_device` - Connect to a device via TCP/IP
-- `disconnect_device` - Disconnect from a device
+- `devicelist` - List all connected Android devices
+- `device_properties` - Get detailed properties of a specific device
+- `device_logcat` - Get recent logcat output from a device
+- `list_directory` - List contents of a directory on the device
+- `connect_device` - Connect to a device over TCP/IP
+- `disconnect_device` - Disconnect from an Android device
 - `shell_command` - Run a shell command on the device
 - `install_app` - Install an APK on the device
-- `screenshot` - Take a screenshot of the device
 - `reboot_device` - Reboot the device (normal, recovery, or bootloader)
+- `screenshot` - Get a screenshot from a device
 
-## 📊 Example Queries for AI Assistants
+## 📊 Example AI Assistant Queries
 
-Here are some example queries you can ask an AI assistant connected to DroidMind:
+With an AI assistant connected to DroidMind, try these queries:
 
-- "List all connected Android devices"
-- "Connect to my phone at 192.168.1.100"
-- "Show me the battery stats on my Pixel phone"
-- "What's the Android version of my connected device?"
-- "Take a screenshot of my phone"
-- "Check if my device has any error messages in the logs"
-- "Install this APK file on my device"
-- "Reboot my phone into recovery mode"
+- "List all connected Android devices and show me their properties"
+- "Connect to my phone at 192.168.1.100 and check its battery status"
+- "Take a screenshot of my Pixel and show me what's currently on screen"
+- "Check the available storage space on my device"
+- "Look at recent logs and tell me if there are any errors"
+- "Install this APK file on my device and tell me if it was successful"
+- "Show me a list of all installed apps on my phone"
+- "Reboot my device into recovery mode"
+- "What Android version is my phone running?"
+- "Check if my device is rooted and tell me its security patch level"
 
 ## 🚧 Development Status
 
-DroidMind is currently in active development with approximately 18% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
+DroidMind is in active development with approximately 30% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
+
+### Current Focus Areas:
+
+1. **File System Implementation** - Enhancing file management capabilities
+2. **Security Framework** - Adding command validation and safety features
+3. **Documentation** - Creating comprehensive guides and references
+4. **Console UI Enhancements** - Building a more interactive user experience
 
 ## 💻 Development
 
@@ -158,3 +158,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📝 License
 
 This project is licensed under the Apache License - see the LICENSE file for details.
+
+---
+
+<div align="center">
+
+Created by [Stefanie Jane 🌠](https://github.com/hyperb1iss)
+
+If you find DroidMind useful, [buy me a Monster Ultra Violet ⚡️](https://ko-fi.com/hyperb1iss)
+
+</div>
