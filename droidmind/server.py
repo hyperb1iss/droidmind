@@ -7,25 +7,24 @@ It delegates core functionality to specialized modules.
 
 import ipaddress
 import logging
-import signal
-import sys
 from typing import Any, cast
 
-# Third-party imports
 import anyio
 import click
-from mcp.server.stdio import stdio_server
+from mcp.server.sse import SseServerTransport
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.routing import Mount, Route
+import uvicorn
 
-# First-party imports (DroidMind modules)
 from droidmind.mcp_instance import mcp
-from droidmind.networking import setup_sse_server
 from droidmind.utils import console
 
-# Defer logging configuration until after command line parsing
 logger = logging.getLogger("droidmind")
 
 
-# Main entrypoint
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option(
     "--host",
@@ -54,7 +53,6 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
     to control and interact with Android devices via ADB.
     """
     # Start visual elements before configuring logging
-    # Display the banner right away
     console.print_banner()
 
     # Prepare server configuration info
@@ -79,14 +77,12 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
 
     # Configure logging using our ultimate NeonGlam config from console.py
     handler = console.create_custom_handler()
-
-    # Configure basic logging with our custom handler
     logging.basicConfig(
         level=getattr(logging, str(config["log_level"])),
         format="%(message)s",
         datefmt="[%X]",
         handlers=[handler],
-        force=True,  # Make sure we override any existing configuration
+        force=True,
     )
     logger.setLevel(logging.DEBUG if debug else getattr(logging, log_level))
     logger.handlers = [handler]
@@ -98,31 +94,46 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
         uvicorn_logger.handlers = [handler]
         uvicorn_logger.propagate = False
 
-    # Set up signal handlers
-    def handle_exit(signum: int, _: object = None) -> None:
-        logger.info("Received signal %s, shutting down gracefully...", signal.Signals(signum).name)
-        sys.exit(0)
-
-    # Register signal handlers
-    signal.signal(signal.SIGINT, handle_exit)
-    signal.signal(signal.SIGTERM, handle_exit)
-
-    # Start appropriate server based on transport mode
     if transport == "sse":
-        # Launch the SSE server - no need to display connection info again
-        setup_sse_server(cast(str, config["host"]), cast(int, config["port"]), mcp, debug)
+        # Set up SSE transport
+        sse = SseServerTransport("/messages/")
+
+        async def handle_sse(request: Request) -> None:
+            async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
+                await mcp._mcp_server.run(
+                    streams[0],
+                    streams[1],
+                    mcp._mcp_server.create_initialization_options(),
+                )
+
+        # Create Starlette app with CORS middleware
+        app = Starlette(
+            debug=debug,
+            middleware=[
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=["*"],
+                    allow_methods=["GET", "POST"],
+                    allow_headers=["*"],
+                )
+            ],
+            routes=[
+                Route("/sse", endpoint=handle_sse),
+                Mount("/messages/", app=sse.handle_post_message),
+            ],
+        )
+
+        # Run the server
+        uvicorn.run(app, host=cast(str, config["host"]), port=cast(int, config["port"]), log_config=None)
     else:
         # Use stdio transport for terminal use
         logger.info("Using stdio transport for terminal interaction")
+        from mcp.server.stdio import stdio_server
 
-        # Launch the stdio server
         async def arun() -> None:
             async with stdio_server() as streams:
                 # Log that we're ready to accept commands
                 console.startup_complete()
-
-                # Use the MCP server run method with correct arguments
-                # The streams object is a tuple of (read_stream, write_stream)
                 await mcp._mcp_server.run(
                     streams[0],
                     streams[1],
@@ -133,4 +144,10 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str) -> N
 
 
 if __name__ == "__main__":
-    main(host="127.0.0.1", port=8000, transport="stdio", debug=False, log_level="INFO")
+    main(
+        host="127.0.0.1",
+        port=8000,
+        transport="stdio",
+        debug=False,
+        log_level="INFO"
+    )
