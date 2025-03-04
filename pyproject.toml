@@ -236,7 +236,7 @@ section-order = [
 "__init__.py" = ["F401", "E402"]
 
 # Allow catching blind exceptions in tools.py and unused ctx arguments
-"droidmind/tools.py" = ["BLE001", "ARG001"]
+"droidmind/tools/**/*.py" = ["BLE001", "ARG001"]
 
 # Allow accessing private members in server.py for MCP server access
 "droidmind/server.py" = ["SLF001"]
@@ -244,6 +244,8 @@ section-order = [
 # More relaxed rules for tests
 "tests/**/*.py" = [
     "ARG001",  # Unused function arguments (common for fixtures)
+    "ARG002",  # Unused function arguments (common for fixtures)
+    "ARG005",  # Unused lambda arguments (common for fixtures)
     "E501",    # Allow longer lines in tests (assertions can get verbose)
     "PIE790",  # Allow unnecessary 'pass' statements in mocks
     "PLR2004", # Allow magic numbers in tests
