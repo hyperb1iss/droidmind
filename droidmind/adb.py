@@ -6,12 +6,11 @@ This module provides a wrapper around the system's ADB binary to interact with A
 
 import asyncio
 from contextlib import AsyncExitStack
-import logging
 import os
 import re
 import shlex
 
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 class ADBWrapper:
@@ -179,10 +178,12 @@ class ADBWrapper:
                 logger.warning("No USB devices found")
                 return None
 
-            # Return the first USB device serial
             return usb_devices[0]["serial"]
 
-        except Exception as e:
+        except (RuntimeError, OSError, TimeoutError) as e:
+            logger.exception("Failed to connect to USB device due to system error: %s", e)
+            return None
+        except Exception as e:  # noqa: BLE001 - Need to handle any device-specific errors
             logger.exception("Failed to connect to USB device: %s", e)
             return None
 
@@ -215,7 +216,10 @@ class ADBWrapper:
             logger.warning("Device %s was not connected", serial)
             return False
 
-        except Exception as e:
+        except (RuntimeError, OSError, TimeoutError) as e:
+            logger.exception("System error disconnecting from %s: %s", serial, e)
+            return False
+        except Exception as e:  # noqa: BLE001 - Must handle any device-specific errors for clean disconnect
             logger.exception("Error disconnecting from %s: %s", serial, e)
             return False
 
@@ -291,7 +295,7 @@ class ADBWrapper:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Top-level device list handler needs to catch all errors
             logger.exception("Error getting device list: %s", e)
             # Check for specific error types to provide more helpful messages
             if isinstance(e, RuntimeError) and "ADB command failed" in str(e):
@@ -376,7 +380,10 @@ class ADBWrapper:
         except ValueError:
             # Re-raise if device not connected
             raise
-        except Exception as e:
+        except (RuntimeError, OSError, TimeoutError) as e:
+            logger.exception("System error getting properties from %s: %s", serial, e)
+            return {}
+        except Exception as e:  # noqa: BLE001 - Must handle any device-specific property errors
             logger.exception("Error getting properties from %s: %s", serial, e)
             return {}
 
@@ -397,7 +404,10 @@ class ADBWrapper:
             # Direct shell command to avoid potential recursion
             stdout, _ = await self._run_adb_device_command(serial, ["shell", f"getprop {prop_name}"], check=False)
             return stdout.strip() if stdout else None
-        except Exception as e:
+        except (RuntimeError, OSError, TimeoutError) as e:
+            logger.exception("System error getting property %s from %s: %s", prop_name, serial, e)
+            return None
+        except Exception as e:  # noqa: BLE001 - Must handle any device-specific property errors
             logger.exception("Error getting property %s from %s: %s", prop_name, serial, e)
             return None
 

@@ -5,15 +5,13 @@ This module provides MCP tools for listing, connecting to, disconnecting from,
 and rebooting Android devices.
 """
 
-import logging
 import re
 
 from mcp.server.fastmcp import Context
 
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 @mcp.tool()

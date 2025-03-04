@@ -7,15 +7,13 @@ allowing AI assistants to access device data in a structured way.
 Resources are like read-only endpoints that expose data to the AI assistant.
 """
 
-import logging
 import os
 import re
 
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
 from droidmind.filesystem import DirectoryResource, FileResource
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 # MCP Resource Implementations

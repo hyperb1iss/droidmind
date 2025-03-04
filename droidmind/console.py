@@ -2,7 +2,6 @@
 Console utilities for DroidMind using the rich library for beautiful terminal output.
 """
 
-import logging
 from typing import Any
 
 from rich.box import ROUNDED
@@ -12,14 +11,13 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
+from droidmind.log import logger
+
 # Create a console with a custom theme for DroidMind - for direct console operations
 console = Console(
     highlight=True,
     theme=None,  # Default theme works well
 )
-
-# Get the configured logger
-logger = logging.getLogger("droidmind")
 
 # NeonGlam color palette aligned with our aesthetic guidelines
 COLORS = {

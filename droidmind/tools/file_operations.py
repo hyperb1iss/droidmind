@@ -5,7 +5,6 @@ This module provides MCP tools for listing, uploading, downloading, and manipula
 files on connected Android devices.
 """
 
-import logging
 import os
 
 from mcp.server.fastmcp import Context
@@ -13,8 +12,7 @@ from mcp.server.fastmcp import Context
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
 from droidmind.filesystem import DirectoryResource, format_file_size
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 @mcp.tool()

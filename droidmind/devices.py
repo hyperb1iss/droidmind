@@ -10,7 +10,6 @@ through ADB. It defines two primary classes:
 """
 
 import contextlib
-import logging
 import os
 import random
 import re
@@ -21,8 +20,7 @@ import time
 import aiofiles
 
 from droidmind.adb import ADBWrapper
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 # pylint: disable=too-many-public-methods
@@ -306,7 +304,7 @@ class Device:
         try:
             # Generate a unique filename with timestamp and random component
             timestamp = int(time.time())
-            random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8)) # noqa: S311
+            random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))  # noqa: S311
             device_filename = f"/.screenshot_{timestamp}_{random_suffix}.png"
 
             # Take screenshot on device and save to a hidden file

@@ -5,11 +5,7 @@ This module provides all the prompt templates for the DroidMind MCP server,
 allowing AI assistants to have pre-defined interaction patterns.
 """
 
-import logging
-
 from droidmind.context import mcp
-
-logger = logging.getLogger("droidmind")
 
 
 @mcp.prompt()

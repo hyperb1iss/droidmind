@@ -4,14 +4,11 @@ UI Automation Tools - MCP tools for interacting with Android device UI.
 This module provides MCP tools for touch interaction, input, and UI navigation.
 """
 
-import logging
-
 from mcp.server.fastmcp import Context
 
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 @mcp.tool()

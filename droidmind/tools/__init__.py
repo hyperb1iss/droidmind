@@ -49,8 +49,6 @@ from droidmind.tools.ui import (
     tap,
 )
 
-logger = logging.getLogger("droidmind")
-
 # Re-export get_device_manager for backward compatibility
 __all__ = [
     "connect_device",

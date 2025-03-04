@@ -7,7 +7,6 @@ It delegates core functionality to specialized modules.
 
 import asyncio
 import ipaddress
-import logging
 import sys
 import traceback
 from types import TracebackType
@@ -26,16 +25,14 @@ import uvicorn
 
 # Annotated modules with MCP prompts, resources, and tools
 from droidmind import (  # noqa: F401
+    console,
     prompts,
     resources,
     tools,
 )
 from droidmind.context import mcp
 from droidmind.devices import DeviceManager, set_device_manager
-
-from . import console
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger, setup_logging
 
 
 # Custom exception handler for TaskGroup exceptions
@@ -45,8 +42,6 @@ def handle_taskgroup_exception(exc: BaseException) -> None:
     Args:
         exc: The exception to handle
     """
-    logger = logging.getLogger("droidmind")
-
     # Log the main exception
     logger.error("TaskGroup exception occurred: %s", exc)
 
@@ -62,39 +57,6 @@ def handle_taskgroup_exception(exc: BaseException) -> None:
         logger.error(
             "".join(traceback.format_exception(type(exc.__context__), exc.__context__, exc.__context__.__traceback__))
         )
-
-
-def setup_logging(log_level: str, debug: bool, handler: RichHandler) -> None:
-    """Configure logging for the application.
-
-    Args:
-        log_level: The logging level to use
-        debug: Whether debug mode is enabled
-        handler: The RichHandler to use for logging
-    """
-    logging.basicConfig(
-        level=getattr(logging, str(log_level)),
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[handler],
-        force=True,
-    )
-    logger.setLevel(logging.DEBUG if debug else getattr(logging, log_level))
-    logger.handlers = [handler]
-    logger.propagate = False
-
-    # Also configure Uvicorn loggers with our custom handler
-    for uv_logger in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
-        uvicorn_logger = logging.getLogger(uv_logger)
-        uvicorn_logger.handlers = [handler]
-        uvicorn_logger.propagate = False
-
-    # Set higher log level for protocol-level logs
-    logging.getLogger("mcp.server.sse").setLevel(logging.INFO)
-    logging.getLogger("mcp.server.stdio").setLevel(logging.INFO)
-    logging.getLogger("mcp.server.fastmcp").setLevel(logging.INFO)
-    logging.getLogger("starlette").setLevel(logging.INFO)
-    logging.getLogger("uvicorn").setLevel(logging.INFO)
 
 
 def setup_asyncio_exception_handler() -> None:
@@ -169,7 +131,7 @@ def run_sse_server(config: dict[str, Any]) -> None:
                 )
             except asyncio.CancelledError:
                 logger.debug("ASGI connection cancelled, shutting down quietly.")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - Top-level ASGI connection handler must catch all errors
                 logger.exception("ASGI connection ended with exception: %s", e)
                 # Use our custom exception handler for detailed logging
                 handle_taskgroup_exception(e)
@@ -207,7 +169,7 @@ def run_sse_server(config: dict[str, Any]) -> None:
         asyncio.run(server.serve())
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt received, shutting down gracefully.")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Top-level server shutdown handler must catch all errors
         logger.exception("Server encountered exception during shutdown: %s", e)
 
 

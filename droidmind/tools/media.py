@@ -5,15 +5,13 @@ This module provides MCP tools for capturing screenshots and other media from An
 """
 
 import io
-import logging
 
 from mcp.server.fastmcp import Context, Image
 from PIL import Image as PILImage, UnidentifiedImageError
 
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 @mcp.tool()
@@ -56,15 +54,11 @@ async def screenshot(serial: str, ctx: Context, quality: int = 75) -> Image:
             buffer = io.BytesIO()
 
             # Load the PNG data into a PIL Image
-            img = PILImage.open(io.BytesIO(screenshot_data))
-
-            # Convert to RGB (removing alpha channel if present) and save as JPEG
-            if img.mode == "RGBA":
-                img = img.convert("RGB")
-
-            # Save as JPEG with specified quality
-            img.save(buffer, format="JPEG", quality=quality, optimize=True)
-            jpeg_data = buffer.getvalue()
+            with PILImage.open(io.BytesIO(screenshot_data)) as img:
+                # Convert to RGB (removing alpha channel if present) and save as JPEG
+                converted_img = img.convert("RGB") if img.mode == "RGBA" else img
+                converted_img.save(buffer, format="JPEG", quality=quality, optimize=True)
+                jpeg_data = buffer.getvalue()
 
             # Get size reduction info for logging
             png_size = len(screenshot_data) / 1024

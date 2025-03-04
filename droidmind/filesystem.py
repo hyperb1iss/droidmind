@@ -5,13 +5,11 @@ This module provides object-oriented abstractions for interacting with the
 Android device filesystem, allowing for structured access to files and directories.
 """
 
-import logging
 import os
 from typing import Any, Union
 
 from droidmind.devices import Device
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 class FileSystemResource:

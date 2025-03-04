@@ -110,9 +110,7 @@ pretty = true
 # Third-party modules without type stubs
 [[tool.mypy.overrides]]
 module = [
-    "adb_shell.*",
     "mcp.*",
-    "netifaces.*",
     "starlette.*",
     "uvicorn.*",
     "sse_starlette.*",
@@ -235,7 +233,9 @@ section-order = [
 # Ignore unused imports in __init__ files
 "__init__.py" = ["F401", "E402"]
 
-# Allow catching blind exceptions in tools.py and unused ctx arguments
+# Allow catching blind exceptions in prompts, resources, and tools 
+"droidmind/prompts.py" = ["BLE001", "ARG001"]
+"droidmind/resources.py" = ["BLE001", "ARG001"]
 "droidmind/tools/**/*.py" = ["BLE001", "ARG001"]
 
 # Allow accessing private members in server.py for MCP server access

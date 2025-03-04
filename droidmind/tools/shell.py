@@ -4,14 +4,11 @@ Shell Tools - MCP tools for executing shell commands on Android devices.
 This module provides MCP tools for running shell commands on connected Android devices.
 """
 
-import logging
-
 from mcp.server.fastmcp import Context
 
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 @mcp.tool()

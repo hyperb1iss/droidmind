@@ -4,15 +4,13 @@ App Management Tools - MCP tools for installing and managing Android application
 This module provides MCP tools for installing, uninstalling, and managing Android applications.
 """
 
-import logging
 import os
 
 from mcp.server.fastmcp import Context
 
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
-
-logger = logging.getLogger("droidmind")
+from droidmind.log import logger
 
 
 @mcp.tool()
