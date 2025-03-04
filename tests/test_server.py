@@ -213,8 +213,8 @@ async def test_shell_command(mock_get_device, mock_context, mock_device):
     # Verify the result
     assert "command output" in result
 
-    # Verify the mock was called
-    mock_device.run_shell.assert_called_once_with("ls")
+    # Verify the mock was called with the default parameters for max_lines and max_size
+    mock_device.run_shell.assert_called_once_with("ls", 1000, 100000)
 
 
 @pytest.mark.asyncio

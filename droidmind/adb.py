@@ -93,7 +93,23 @@ class ADBWrapper:
 
         except Exception as e:
             logger.exception("Error executing ADB command: %s", e)
-            raise
+            # Provide more specific error messages based on exception type
+            if isinstance(e, FileNotFoundError):
+                error_msg = (
+                    f"ADB binary not found at path: {self.adb_path}. Please ensure ADB is installed and in your PATH."
+                )
+                logger.exception(error_msg)
+                raise FileNotFoundError(error_msg) from e
+            if isinstance(e, PermissionError):
+                error_msg = f"Permission denied when executing ADB command: {cmd_str}. Check file permissions."
+                logger.exception(error_msg)
+                raise PermissionError(error_msg) from e
+            if isinstance(e, OSError):
+                error_msg = f"OS error when executing ADB command: {cmd_str}. Error: {e}"
+                logger.exception(error_msg)
+                raise OSError(error_msg) from e
+            # For other exceptions, re-raise with more context
+            raise RuntimeError(f"Failed to execute ADB command: {cmd_str}. Error: {e}") from e
 
     async def _run_adb_device_command(
         self, serial: str, args: list[str], timeout_seconds: float | None = None, check: bool = True
@@ -277,7 +293,21 @@ class ADBWrapper:
 
         except Exception as e:
             logger.exception("Error getting device list: %s", e)
-            return self._devices_cache  # Return cached devices if available
+            # Check for specific error types to provide more helpful messages
+            if isinstance(e, RuntimeError) and "ADB command failed" in str(e):
+                logger.exception("ADB command failed. Is ADB installed and in your PATH?")
+            elif isinstance(e, FileNotFoundError):
+                logger.exception("ADB binary not found at path: %s", self.adb_path)
+            elif isinstance(e, TimeoutError):
+                logger.exception("ADB command timed out. Device may be unresponsive.")
+            elif isinstance(e, OSError):
+                logger.exception("OS error when running ADB. Check permissions and connectivity.")
+
+            # Return cached devices if available, otherwise empty list
+            if self._devices_cache:
+                logger.info("Returning %d cached devices", len(self._devices_cache))
+                return self._devices_cache
+            return []
 
     async def shell(self, serial: str, command: str) -> str:
         """Run a shell command on the device.

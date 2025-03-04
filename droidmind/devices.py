@@ -98,16 +98,83 @@ class Device:
         props = await self.get_properties()
         return props.get("ro.build.display.id", "Unknown")
 
-    async def get_logcat(self, lines: int = 100) -> str:
+    async def get_logcat(self, lines: int = 1000, filter_expr: str | None = None) -> str:
         """Get the most recent lines from logcat.
 
         Args:
-            lines: Number of lines to retrieve
+            lines: Number of lines to retrieve (default: 1000)
+            filter_expr: Optional filter expression (e.g., "ActivityManager:I *:S")
 
         Returns:
             Recent logcat output
         """
-        return await self._adb.shell(self._serial, f"logcat -d -t {lines}")
+        cmd = "logcat -d"
+
+        # Apply line limit
+        if lines > 0:
+            cmd += f" -t {lines}"
+
+        # Apply filter if provided
+        if filter_expr and filter_expr.strip():
+            # Sanitize filter expression to prevent command injection
+            safe_filter = re.sub(r"[;&|<>$]", "", filter_expr)
+            cmd += f" {safe_filter}"
+
+        # Get raw logcat
+        output = await self._adb.shell(self._serial, cmd)
+
+        # If the output is extremely large, summarize by log level
+        if len(output) > 50000:
+            # Still return the full output, but add a summary at the beginning
+            log_levels = {
+                "V": 0,  # Verbose
+                "D": 0,  # Debug
+                "I": 0,  # Info
+                "W": 0,  # Warning
+                "E": 0,  # Error
+                "F": 0,  # Fatal
+            }
+
+            # Count occurrences of each log level
+            for line in output.splitlines():
+                for level in log_levels:
+                    if f"/{level} " in line:
+                        log_levels[level] += 1
+                        break
+
+            # Create a summary
+            total_lines = sum(log_levels.values())
+            summary_lines = [
+                "## Logcat Summary",
+                f"Total lines: {total_lines}",
+                "",
+                "| Level | Count | Percentage |",
+                "|-------|-------|------------|",
+            ]
+
+            for level, count in log_levels.items():
+                level_name = {"V": "Verbose", "D": "Debug", "I": "Info", "W": "Warning", "E": "Error", "F": "Fatal"}[
+                    level
+                ]
+
+                percentage = (count / total_lines * 100) if total_lines > 0 else 0
+                summary_lines.append(f"| {level_name} | {count} | {percentage:.1f}% |")
+
+            summary_lines.extend(
+                [
+                    "",
+                    "To reduce output size, try filtering with a specific tag or level:",
+                    'Example: `device_logcat(serial, filter_expr="ActivityManager:I *:S")`',
+                    "",
+                    "## Full Logcat Output",
+                    "",
+                ]
+            )
+
+            # Add summary to beginning of output
+            output = "\n".join(summary_lines) + "\n" + output
+
+        return output
 
     async def list_directory(self, path: str) -> str:
         """List the contents of a directory on the device.
@@ -120,16 +187,96 @@ class Device:
         """
         return await self._adb.shell(self._serial, f"ls -la {path}")
 
-    async def run_shell(self, command: str) -> str:
+    async def run_shell(self, command: str, max_lines: int | None = 1000, max_size: int | None = 100000) -> str:
         """Run a shell command on the device.
 
         Args:
             command: Shell command to run
+            max_lines: Maximum number of output lines to return
+                      Use positive numbers for first N lines, negative for last N lines
+                      Set to None for unlimited (not recommended for large outputs)
+            max_size: Maximum output size in characters (default: 100000)
+                      Limits total response size regardless of line count
 
         Returns:
-            Command output
+            Command output with optional truncation summary
         """
-        return await self._adb.shell(self._serial, command)
+        # Handle special case where max_lines or max_size is 0 or negative
+        if max_lines is not None and max_lines <= 0:
+            max_lines = None
+        if max_size is not None and max_size <= 0:
+            max_size = None
+
+        # Check if the command is likely to produce large output
+        large_output_patterns = [
+            r"\bcat\s+",  # cat command
+            r"\bgrep\s+.+\s+-r",  # recursive grep
+            r"\bfind\s+.+",  # find commands
+            r"\bls\s+-[RalL]",  # recursive ls or with many options
+            r"\bdumpsys\b",  # dumpsys commands
+            r"\bpm\s+list\b",  # package list
+        ]
+
+        is_large_output_likely = any(re.search(pattern, command) for pattern in large_output_patterns)
+
+        # Add automatic paging for commands likely to produce large output
+        if is_large_output_likely and not command.endswith(("| head", "| tail", "| grep", "| wc")):
+            # Default to showing beginning of output for likely large commands
+            if max_lines is None or max_lines > 500:
+                max_lines = 500
+
+        # Execute the command with appropriate line limiting if specified
+        if max_lines is None:
+            output = await self._adb.shell(self._serial, command)
+        else:
+            # For positive max_lines, use head to get first N lines
+            # For negative max_lines, use tail to get last N lines
+            if max_lines > 0:
+                piped_command = f"{command} | head -n {max_lines}"
+            else:
+                piped_command = f"{command} | tail -n {abs(max_lines)}"
+
+            output = await self._adb.shell(self._serial, piped_command)
+
+        # Limit total output size if needed
+        if max_size and len(output) > max_size:
+            output_lines = output.splitlines()
+            total_lines = len(output_lines)
+
+            if total_lines <= 10:
+                # If we have very few lines but huge content (like a binary dump)
+                # Just truncate with a message
+                output = output[:max_size] + f"\n\n... Output truncated! Total size: {len(output)} characters."
+            else:
+                # Calculate how many lines to keep from beginning and end
+                keep_lines = min(max_lines or total_lines, total_lines)
+                keep_from_start = keep_lines // 2
+                keep_from_end = keep_lines - keep_from_start
+
+                truncated_output = "\n".join(output_lines[:keep_from_start])
+                truncated_output += f"\n\n... {total_lines - keep_from_start - keep_from_end} lines omitted ...\n\n"
+                truncated_output += "\n".join(output_lines[-keep_from_end:])
+
+                # Add summary info
+                truncated_output += f"\n\n[Output truncated: {len(output)} chars, {total_lines} lines]"
+                output = truncated_output
+
+        # Add warning for large outputs that were truncated
+        original_line_count = output.count("\n") + 1
+        if original_line_count >= (max_lines or 1000) or (max_size and len(output) >= max_size):
+            # Calculate size info for summary
+            size_in_kb = len(output) / 1024
+            if size_in_kb < 1:
+                size_info = f"{len(output)} bytes"
+            else:
+                size_info = f"{size_in_kb:.1f} KB"
+
+            # Add a separator and summary line
+            if not output.endswith("\n"):
+                output += "\n"
+            output += f"\n[Command output truncated: {original_line_count} lines, {size_info}]"
+
+        return output
 
     async def reboot(self, mode: str = "normal") -> str:
         """Reboot the device.
@@ -293,7 +440,7 @@ def set_device_manager(device_manager: DeviceManager) -> None:
     Args:
         device_manager: The DeviceManager instance to use
     """
-    global _device_manager_instance # pylint: disable=global-statement
+    global _device_manager_instance  # pylint: disable=global-statement
     _device_manager_instance = device_manager
     logger.debug("Global device manager instance set")
 

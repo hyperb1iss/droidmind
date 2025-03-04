@@ -49,8 +49,8 @@ async def devicelist(ctx: Context) -> str:
 
         return result
     except Exception as e:
-        logger.exception("Error in devicelist: %s", e)
-        return f"Error listing devices: {e}"
+        logger.exception("Error in devicelist tool: %s", e)
+        return f"❌ Error listing devices: {e}\n\nCheck logs for detailed traceback."
 
 
 @mcp.tool()
@@ -104,12 +104,20 @@ async def device_properties(serial: str, ctx: Context) -> str:
 
 
 @mcp.tool()
-async def device_logcat(serial: str, ctx: Context) -> str:
+async def device_logcat(
+    serial: str, ctx: Context, lines: int = 1000, filter_expr: str = "", max_size: int | None = 100000
+) -> str:
     """
     Get recent logcat output from a device.
 
     Args:
         serial: Device serial number
+        lines: Number of recent lines to fetch (default: 1000, max recommended: 20000)
+               Higher values may impact performance and context window limits.
+        filter_expr: Optional filter expression (e.g., "ActivityManager:I *:S")
+                     Use to focus on specific tags or priority levels
+        max_size: Maximum output size in characters (default: 100000)
+                  Set to None for unlimited (not recommended)
 
     Returns:
         Recent logcat entries
@@ -120,12 +128,62 @@ async def device_logcat(serial: str, ctx: Context) -> str:
         if not device:
             return f"Device {serial} not found or not connected."
 
-        logcat = await device.get_logcat()
+        # Safety cap to prevent extremely large outputs
+        if lines > 100000:
+            lines = 100000
+            warning = "⚠️ Line limit was capped at 100,000 to prevent excessive output."
+        elif lines > 10000:
+            warning = "⚠️ Requesting a large number of logcat lines may impact performance and context window limits."
+        else:
+            warning = ""
+
+        # Get logcat with optional filter
+        filter_to_use = filter_expr if filter_expr else None
+        logcat = await device.get_logcat(lines, filter_to_use)
 
         if not logcat:
             return f"No logcat output available for device {serial}."
 
-        return f"# Logcat for device {serial}\n\n```\n{logcat}\n```"
+        # Truncate if needed based on max_size
+        if max_size and len(logcat) > max_size:
+            logcat_lines: list[str] = logcat.splitlines()
+            total_lines = len(logcat_lines)
+
+            # Keep beginning and end, with a notice in the middle
+            keep_lines = 200  # Lines to keep from beginning and end
+            beginning = "\n".join(logcat_lines[:keep_lines])
+            ending = "\n".join(logcat_lines[-keep_lines:])
+
+            omitted = total_lines - (2 * keep_lines)
+            middle_notice = (
+                f"\n\n... {omitted} lines omitted ({len(logcat) - len(beginning) - len(ending)} chars) ...\n\n"
+            )
+
+            logcat = beginning + middle_notice + ending
+            truncation_notice = f"\n\n⚠️ Output truncated from {len(logcat) / 1024:.1f}KB to protect context limits"
+            logcat += truncation_notice
+
+        # Format the output
+        result = f"# Logcat for device {serial}\n\n"
+
+        # Add filter info if present
+        if filter_expr:
+            result += f"**Filter**: `{filter_expr}`\n\n"
+
+        if warning:
+            result += f"{warning}\n\n"
+
+        # Add common filter examples for large outputs
+        if len(logcat) > 50000 and not filter_expr:
+            result += (
+                "**🔍 Pro Tip**: Large output detected. Try these filters to narrow results:\n"
+                "- `ActivityManager:I *:S` - Show only ActivityManager info logs\n"
+                "- `*:E` - Show only error logs\n"
+                "- `System.err:W *:S` - Show only System.err warnings\n\n"
+            )
+
+        result += f"```\n{logcat}\n```"
+        return result
     except Exception as e:
         logger.exception("Error retrieving logcat: %s", e)
         return f"Error retrieving logcat: {e!s}"
@@ -231,13 +289,20 @@ async def disconnect_device(serial: str, ctx: Context) -> str:
 
 
 @mcp.tool()
-async def shell_command(serial: str, command: str, ctx: Context) -> str:
+async def shell_command(
+    serial: str, command: str, ctx: Context, max_lines: int | None = 1000, max_size: int | None = 100000
+) -> str:
     """
     Run a shell command on the device.
 
     Args:
         serial: Device serial number
         command: Shell command to run
+        max_lines: Maximum lines of output to return (default: 1000)
+                  Use positive numbers for first N lines, negative for last N lines
+                  Set to None for unlimited (not recommended for large outputs)
+        max_size: Maximum output size in characters (default: 100000)
+                  Limits total response size regardless of line count
 
     Returns:
         Command output
@@ -248,14 +313,47 @@ async def shell_command(serial: str, command: str, ctx: Context) -> str:
         if not device:
             return f"Error: Device {serial} not connected or not found."
 
-        # Run the shell command
-        result = await device.run_shell(command)
+        # Generate warning based on output size parameters
+        warning = ""
+        if (max_lines is None or max_lines <= 0) and (max_size is None or max_size <= 0):
+            warning = "⚠️ Running command with unlimited output. This may impact performance and context window limits."
+            max_lines = None
+            max_size = None
+        elif max_lines is not None and max_lines > 10000:
+            warning = "⚠️ Requesting a large number of output lines may impact performance."
+            # Cap at 100k lines for safety
+            if max_lines > 100000:
+                max_lines = 100000
+                warning = "⚠️ Line limit was capped at 100,000 to prevent excessive output."
+
+        # Check for commands that typically produce large outputs
+        large_output_commands = ["dumpsys", "logcat", "cat ", "pm list", "find "]
+        if any(cmd in command for cmd in large_output_commands) and not any(
+            limiter in command for limiter in ["| head", "| tail", "| grep"]
+        ):
+            await ctx.info(f"⚠️ Command '{command}' may produce large output - applying automatic limits")
+
+        # Run the shell command with size limits
+        result = await device.run_shell(command, max_lines, max_size)
 
         # Format the output
         if not result.strip():
             return f"Command executed on device {serial} (no output)"
 
-        return f"# Command Output from {serial}\n\n```\n{result}\n```"
+        output = f"# Command Output from {serial}\n\n"
+        if warning:
+            output += f"{warning}\n\n"
+
+        # Check if output is very large and add a note
+        if len(result) > 50000:
+            output += (
+                f"⚠️ Large output detected ({len(result) / 1024:.1f} KB). Consider using more specific filters.\n\n"
+            )
+
+        # Wrap the output in a code block
+        output += f"```\n{result}\n```"
+
+        return output
     except Exception as e:
         logger.exception("Error executing shell command: %s", e)
         return f"Error executing shell command: {e!s}"

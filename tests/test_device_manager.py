@@ -187,8 +187,9 @@ class TestDevice:
         # Verify the result
         assert result == "command output"
 
-        # Check that the ADB wrapper's shell method was called
-        device._adb.shell.assert_called_once_with("device1", "ls -la")
+        # Check that the ADB wrapper's shell method was called with the expected command
+        # The implementation now adds "| head -n 500" to commands that might produce large output
+        device._adb.shell.assert_called_once_with("device1", "ls -la | head -n 500")
 
     @pytest.mark.asyncio
     async def test_reboot(self, device):
