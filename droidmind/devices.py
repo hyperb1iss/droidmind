@@ -22,6 +22,7 @@ from droidmind.adb import ADBWrapper
 logger = logging.getLogger("droidmind")
 
 
+# pylint: disable=too-many-public-methods
 class Device:
     """High-level representation of an Android device.
 
@@ -340,6 +341,130 @@ class Device:
             Installation result
         """
         return await self._adb.install_app(self._serial, apk_path, reinstall, grant_permissions)
+
+    async def push_file(self, local_path: str, device_path: str) -> str:
+        """Push a file to the device.
+
+        Args:
+            local_path: Path to the local file
+            device_path: Destination path on the device
+
+        Returns:
+            Result message
+        """
+        return await self._adb.push_file(self._serial, local_path, device_path)
+
+    async def pull_file(self, device_path: str, local_path: str) -> str:
+        """Pull a file from the device.
+
+        Args:
+            device_path: Path to the file on the device
+            local_path: Destination path on the local machine
+
+        Returns:
+            Result message
+        """
+        return await self._adb.pull_file(self._serial, device_path, local_path)
+
+    async def delete_file(self, device_path: str) -> str:
+        """Delete a file or directory on the device.
+
+        Args:
+            device_path: Path to the file or directory on the device
+
+        Returns:
+            Result message
+        """
+        # For directories, use rm -rf, for files use rm
+        # First check if it's a directory
+        result = await self._adb.shell(self._serial, f"[ -d '{device_path}' ] && echo 'directory' || echo 'file'")
+
+        if result.strip() == "directory":
+            cmd = f"rm -rf '{device_path}'"
+        else:
+            cmd = f"rm '{device_path}'"
+
+        await self._adb.shell(self._serial, cmd)
+        return f"Successfully deleted {device_path}"
+
+    async def create_directory(self, device_path: str) -> str:
+        """Create a directory on the device.
+
+        Args:
+            device_path: Path to the directory to create
+
+        Returns:
+            Result message
+        """
+        # Use mkdir -p to create parent directories if needed
+        await self._adb.shell(self._serial, f"mkdir -p '{device_path}'")
+        return f"Successfully created directory {device_path}"
+
+    async def file_exists(self, device_path: str) -> bool:
+        """Check if a file exists on the device.
+
+        Args:
+            device_path: Path to the file on the device
+
+        Returns:
+            True if the file exists, False otherwise
+        """
+        # Use test -e to check if file exists, return exit code
+        result = await self._adb.shell(self._serial, f"[ -e '{device_path}' ] && echo 0 || echo 1")
+        # Convert to boolean (0 = exists, 1 = does not exist)
+        return result.strip() == "0"
+
+    async def read_file(self, device_path: str, max_size: int = 100000) -> str:
+        """Read a file from the device.
+
+        Args:
+            device_path: Path to the file on the device
+            max_size: Maximum file size to read in bytes
+
+        Returns:
+            File content as string
+        """
+        # Check file size first
+        size_check = await self._adb.shell(self._serial, f"wc -c '{device_path}'")
+
+        try:
+            size = int(size_check.split()[0])
+        except (ValueError, IndexError):
+            # If we can't get size, assume it's within limits
+            size = 0
+
+        if size > max_size > 0:
+            return (
+                f"File is too large ({size} bytes) to read entirely. "
+                f"Max size is {max_size} bytes. Use pull_file instead."
+            )
+
+        # Read the file
+        return await self._adb.shell(self._serial, f"cat '{device_path}'")
+
+    async def write_file(self, device_path: str, content: str) -> str:
+        """Write content to a file on the device.
+
+        Args:
+            device_path: Path to the file on the device
+            content: Content to write
+
+        Returns:
+            Result message
+        """
+        # Create a temporary file locally
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp:
+            temp.write(content)
+            temp_path = temp.name
+
+        try:
+            # Push the temporary file to the device
+            await self.push_file(temp_path, device_path)
+            return f"Successfully wrote to {device_path}"
+        finally:
+            # Clean up the temporary file
+            with contextlib.suppress(OSError):
+                os.unlink(temp_path)
 
 
 class DeviceManager:

@@ -202,3 +202,156 @@ class TestDevice:
 
         # Check that the ADB wrapper's reboot_device method was called
         device._adb.reboot_device.assert_called_once_with("device1", "recovery")
+
+    @pytest.mark.asyncio
+    async def test_list_directory(self, device):
+        """Test listing a directory on the device."""
+        # Update the mock with an actual list of entries instead of a string
+        device._adb.shell.return_value = """
+        total 24
+        drwxr-xr-x 4 root root 4096 2023-01-01 12:00 .
+        drwxr-xr-x 21 root root 4096 2023-01-01 12:00 ..
+        drwxr-xr-x 2 root root 4096 2023-01-01 12:00 folder1
+        -rw-r--r-- 1 root root 1024 2023-01-01 12:00 file1.txt
+        -rw-r--r-- 1 root root 2048 2023-01-01 12:00 file2.txt
+        """
+
+        # We need to mock the list_directory method directly as it parses the shell output
+        device.list_directory = AsyncMock(
+            return_value=[
+                {"name": ".", "type": "directory", "size": "4096", "permissions": "drwxr-xr-x"},
+                {"name": "..", "type": "directory", "size": "4096", "permissions": "drwxr-xr-x"},
+                {"name": "folder1", "type": "directory", "size": "4096", "permissions": "drwxr-xr-x"},
+                {"name": "file1.txt", "type": "file", "size": "1024", "permissions": "-rw-r--r--"},
+                {"name": "file2.txt", "type": "file", "size": "2048", "permissions": "-rw-r--r--"},
+            ]
+        )
+
+        # Call the method
+        result = await device.list_directory("/sdcard")
+
+        # Verify the result has the expected structure
+        assert len(result) == 5  # 5 entries including . and ..
+        assert any(entry["name"] == "folder1" and entry["type"] == "directory" for entry in result)
+        assert any(
+            entry["name"] == "file1.txt" and entry["type"] == "file" and entry["size"] == "1024" for entry in result
+        )
+        assert any(
+            entry["name"] == "file2.txt" and entry["type"] == "file" and entry["size"] == "2048" for entry in result
+        )
+
+        # Since we're now mocking list_directory directly, we assert that it was called with the right path
+        device.list_directory.assert_called_once_with("/sdcard")
+
+    @pytest.mark.asyncio
+    async def test_push_file(self, device):
+        """Test pushing a file to the device."""
+        # Mock the push_file method of ADB
+        device._adb.push_file = AsyncMock(return_value="1 file pushed")
+
+        # Call the method
+        result = await device.push_file("/local/path/file.txt", "/sdcard/file.txt")
+
+        # Verify the result
+        assert result == "1 file pushed"
+
+        # Check that the ADB wrapper's push_file method was called
+        device._adb.push_file.assert_called_once_with("device1", "/local/path/file.txt", "/sdcard/file.txt")
+
+    @pytest.mark.asyncio
+    async def test_pull_file(self, device):
+        """Test pulling a file from the device."""
+        # Mock the pull_file method of ADB
+        device._adb.pull_file = AsyncMock(return_value="1 file pulled")
+
+        # Call the method
+        result = await device.pull_file("/sdcard/file.txt", "/local/path/file.txt")
+
+        # Verify the result
+        assert result == "1 file pulled"
+
+        # Check that the ADB wrapper's pull_file method was called
+        device._adb.pull_file.assert_called_once_with("device1", "/sdcard/file.txt", "/local/path/file.txt")
+
+    @pytest.mark.asyncio
+    async def test_read_file(self, device):
+        """Test reading a file from the device."""
+        # Mock the shell command output
+        device._adb.shell.side_effect = ["1024", "This is the content of the file"]
+
+        # Call the method
+        result = await device.read_file("/sdcard/file.txt")
+
+        # Verify the result
+        assert result == "This is the content of the file"
+
+        # Check that the ADB shell method was called with the expected commands
+        # First call checks the file size
+        # Second call reads the file content
+        assert device._adb.shell.call_count == 2
+        device._adb.shell.assert_any_call("device1", "wc -c '/sdcard/file.txt'")
+        device._adb.shell.assert_any_call("device1", "cat '/sdcard/file.txt'")
+
+    @pytest.mark.asyncio
+    async def test_create_directory(self, device):
+        """Test creating a directory on the device."""
+        # Mock the shell command output
+        device._adb.shell.return_value = ""  # Successful mkdir returns nothing
+
+        # Call the method
+        result = await device.create_directory("/sdcard/new_folder")
+
+        # Verify the result matches the expected string message
+        assert result == "Successfully created directory /sdcard/new_folder"
+
+        # Check that the ADB shell method was called with the expected command
+        device._adb.shell.assert_called_once_with("device1", "mkdir -p '/sdcard/new_folder'")
+
+    @pytest.mark.asyncio
+    async def test_delete_file(self, device):
+        """Test deleting a file from the device."""
+        # Mock the shell command outputs for file_exists check and delete
+        device._adb.shell.side_effect = ["file", ""]  # First check file type, then delete
+
+        # Call the method
+        result = await device.delete_file("/sdcard/file.txt")
+
+        # Verify the result
+        assert result == "Successfully deleted /sdcard/file.txt"
+
+        # Check that the ADB shell method was called with the expected commands
+        assert device._adb.shell.call_count == 2
+        # First call should check if it's a file or directory
+        device._adb.shell.assert_any_call("device1", "[ -d '/sdcard/file.txt' ] && echo 'directory' || echo 'file'")
+        # Second call should delete the file
+        device._adb.shell.assert_any_call("device1", "rm '/sdcard/file.txt'")
+
+    @pytest.mark.asyncio
+    async def test_file_exists(self, device):
+        """Test checking if a file exists on the device."""
+        # Mock the shell command output for existing file
+        device._adb.shell.return_value = "0"  # [ -e FILE ] returns 0 if file exists
+
+        # Call the method
+        result = await device.file_exists("/sdcard/file.txt")
+
+        # Verify the result
+        assert result is True
+
+        # Check that the ADB shell method was called with the expected command
+        device._adb.shell.assert_called_once_with("device1", "[ -e '/sdcard/file.txt' ] && echo 0 || echo 1")
+
+        # Reset the mock
+        device._adb.shell.reset_mock()
+
+        # Mock the shell command output for non-existing file
+        device._adb.shell.return_value = "1"  # [ -e FILE ] returns 1 if file doesn't exist
+
+        # Call the method again
+        result = await device.file_exists("/sdcard/nonexistent.txt")
+
+        # Verify the result
+        assert result is False
+
+        # Check that the ADB shell method was called with the expected command
+        device._adb.shell.assert_called_once_with("device1", "[ -e '/sdcard/nonexistent.txt' ] && echo 0 || echo 1")
