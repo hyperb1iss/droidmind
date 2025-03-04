@@ -12,8 +12,11 @@ through ADB. It defines two primary classes:
 import contextlib
 import logging
 import os
+import random
 import re
+import string
 import tempfile
+import time
 
 import aiofiles
 
@@ -301,14 +304,19 @@ class Device:
             screenshot_path = temp.name
 
         try:
-            # Take screenshot on device and save to /sdcard/
-            await self._adb.shell(self._serial, "screencap -p /sdcard/screenshot.png")
+            # Generate a unique filename with timestamp and random component
+            timestamp = int(time.time())
+            random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8)) # noqa: S311
+            device_filename = f"/.screenshot_{timestamp}_{random_suffix}.png"
+
+            # Take screenshot on device and save to a hidden file
+            await self._adb.shell(self._serial, f"screencap -p {device_filename}")
 
             # Pull the file from the device
-            await self._adb.pull_file(self._serial, "/sdcard/screenshot.png", screenshot_path)
+            await self._adb.pull_file(self._serial, device_filename, screenshot_path)
 
             # Clean up the file on the device
-            await self._adb.shell(self._serial, "rm /sdcard/screenshot.png")
+            await self._adb.shell(self._serial, f"rm {device_filename}")
 
             # Read the screenshot file
             async with aiofiles.open(screenshot_path, "rb") as f:
