@@ -18,7 +18,7 @@ workflow, DroidMind can enable your assistant to build and debug with your devic
 ## 💫 Features
 
 - 📱 **Device Control** - Connect to devices over USB or TCP/IP, run shell commands, reboot
-- 📊 **System Analysis** - Inspect device properties, view hardware info, analyze system logs  
+- 📊 **System Analysis** - Inspect device properties, view hardware info, analyze system logs
 - 🔍 **File System Access** - Browse directory contents and manage files on devices
 - 📷 **Visual Diagnostics** - Capture device screenshots for analysis and debugging
 - 📦 **App Management** - Install applications on connected devices
@@ -84,6 +84,8 @@ droidmind --transport sse --host 0.0.0.0 --port 8000
 - `device://{serial}/properties` - Get detailed device properties
 - `logs://{serial}/logcat` - Get recent logs from the device
 - `fs://{serial}/list/{path}` - List directory contents on the device
+- `fs://{serial}/read/{path}` - Read file contents from the device
+- `fs://{serial}/stats/{path}` - Get detailed file/directory statistics
 
 ### Tools
 
@@ -97,6 +99,14 @@ droidmind --transport sse --host 0.0.0.0 --port 8000
 - `install_app` - Install an APK on the device
 - `reboot_device` - Reboot the device (normal, recovery, or bootloader)
 - `screenshot` - Get a screenshot from a device
+- `push_file` - Upload a file to the device
+- `pull_file` - Download a file from the device
+- `delete_file` - Delete a file or directory from the device
+- `create_directory` - Create a directory on the device
+- `file_exists` - Check if a file exists on the device
+- `read_file` - Read the contents of a file on the device
+- `write_file` - Write text content to a file on the device
+- `file_stats` - Get detailed information about a file or directory
 
 ## 📊 Example AI Assistant Queries
 
@@ -115,14 +125,14 @@ With an AI assistant connected to DroidMind, try these queries:
 
 ## 🚧 Development Status
 
-DroidMind is in active development with approximately 30% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
+DroidMind is in active development with approximately 45% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
 
 ### Current Focus Areas:
 
-1. **File System Implementation** - Enhancing file management capabilities
+1. **UI Automation Development** - Adding touch, text input, and intent capabilities
 2. **Security Framework** - Adding command validation and safety features
-3. **Documentation** - Creating comprehensive guides and references
-4. **Console UI Enhancements** - Building a more interactive user experience
+3. **App Management** - Completing app lifecycle and data management tools
+4. **Documentation Expansion** - Creating comprehensive guides and API references
 
 ## 💻 Development
 
