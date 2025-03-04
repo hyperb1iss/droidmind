@@ -58,7 +58,7 @@ Run DroidMind as a server to connect AI assistants via MCP:
 
 ```bash
 # Start DroidMind as a network server
-droidmind --transport sse --host 0.0.0.0 --port 8000
+droidmind --transport sse
 ```
 
 ### Using with AI Assistants
@@ -66,13 +66,13 @@ droidmind --transport sse --host 0.0.0.0 --port 8000
 1. Start DroidMind in SSE mode:
 
    ```bash
-   droidmind --transport sse --host 0.0.0.0 --port 8000
+   droidmind --transport sse
    ```
 
 2. Connect your AI assistant using the MCP protocol URI:
 
    ```
-   sse://your-ip-address:8000/sse
+   sse://localhost:6463/sse
    ```
 
 3. The AI can now control your Android devices through natural language!

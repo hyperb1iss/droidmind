@@ -199,7 +199,12 @@ def run_stdio_server() -> None:
     default="127.0.0.1",
     help="Host to bind the server to (use 0.0.0.0 for all interfaces)",
 )
-@click.option("--port", default=8000, type=int, help="Port to listen on for network connections")
+@click.option(
+    "--port",
+    default=6463, # m.i.n.d
+    type=int,
+    help="Port to listen on for network connections"
+)
 @click.option(
     "--transport",
     type=click.Choice(["stdio", "sse"]),
@@ -272,4 +277,4 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str, adb_
 
 
 if __name__ == "__main__":
-    main(host="127.0.0.1", port=8000, transport="stdio", debug=False, log_level="INFO", adb_path="adb")
+    main(host="127.0.0.1", port=6942, transport="sse", debug=False, log_level="INFO", adb_path="adb")
