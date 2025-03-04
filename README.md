@@ -23,6 +23,7 @@ workflow, DroidMind can enable your assistant to build and debug with your devic
 - 📷 **Visual Diagnostics** - Capture device screenshots for analysis and debugging
 - 📦 **App Management** - Install applications on connected devices
 - 🔄 **Multi-Device Support** - Control and switch between multiple connected devices
+- 👆 **UI Automation** - Interact with the device through taps, swipes, text input, and key presses
 - 🌈 **NeonGlam Console** - Enjoy an aesthetic terminal experience
 - 💬 **MCP Integration** - Seamless connection to Claude, Cursor, Cline, and more
 
@@ -107,6 +108,11 @@ droidmind --transport sse --host 0.0.0.0 --port 8000
 - `read_file` - Read the contents of a file on the device
 - `write_file` - Write text content to a file on the device
 - `file_stats` - Get detailed information about a file or directory
+- `tap` - Tap on the device screen at specific coordinates
+- `swipe` - Perform a swipe gesture from one point to another on the screen
+- `input_text` - Input text on the device as if from a keyboard
+- `press_key` - Press a hardware or software key (e.g., HOME, BACK, VOLUME)
+- `start_intent` - Start an app activity using an Android intent
 
 ## 📊 Example AI Assistant Queries
 
@@ -122,6 +128,11 @@ With an AI assistant connected to DroidMind, try these queries:
 - "Reboot my device into recovery mode"
 - "What Android version is my phone running?"
 - "Check if my device is rooted and tell me its security patch level"
+- "Tap on the Settings icon at coordinates 500,1000"
+- "Swipe down from the top of the screen to open the notification shade"
+- "Input my password into the current text field"
+- "Press the back button three times to return to the home screen"
+- "Open the Settings app by starting the com.android.settings package"
 
 ## 🚧 Development Status
 
@@ -129,7 +140,7 @@ DroidMind is in active development with approximately 45% of planned features im
 
 ### Current Focus Areas:
 
-1. **UI Automation Development** - Adding touch, text input, and intent capabilities
+1. ~~**UI Automation Development** - Adding touch, text input, and intent capabilities~~ ✅ Completed!
 2. **Security Framework** - Adding command validation and safety features
 3. **App Management** - Completing app lifecycle and data management tools
 4. **Documentation Expansion** - Creating comprehensive guides and API references

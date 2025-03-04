@@ -447,7 +447,7 @@ class Device:
 
         Args:
             device_path: Path to the file on the device
-            content: Content to write
+            content: Text content to write to the file
 
         Returns:
             Result message
@@ -465,6 +465,91 @@ class Device:
             # Clean up the temporary file
             with contextlib.suppress(OSError):
                 os.unlink(temp_path)
+
+    # UI Automation Methods
+    async def tap(self, x: int, y: int) -> str:
+        """Simulate a tap at the specified coordinates.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+
+        Returns:
+            Result message
+        """
+        command = f"input tap {x} {y}"
+        return await self._adb.shell(self.serial, command)
+
+    async def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) -> str:
+        """Simulate a swipe gesture from one point to another.
+
+        Args:
+            start_x: Starting X coordinate
+            start_y: Starting Y coordinate
+            end_x: Ending X coordinate
+            end_y: Ending Y coordinate
+            duration_ms: Duration of the swipe in milliseconds
+
+        Returns:
+            Result message
+        """
+        command = f"input swipe {start_x} {start_y} {end_x} {end_y} {duration_ms}"
+        return await self._adb.shell(self.serial, command)
+
+    async def input_text(self, text: str) -> str:
+        """Input text on the device.
+
+        Args:
+            text: Text to input
+
+        Returns:
+            Result message
+        """
+        # Escape special characters that could cause issues in shell
+        safe_text = text.replace("'", "\\'").replace('"', '\\"')
+        command = f"input text '{safe_text}'"
+        return await self._adb.shell(self.serial, command)
+
+    async def press_key(self, keycode: int) -> str:
+        """Simulate pressing a key by its keycode.
+
+        Common keycodes:
+        - 3: HOME
+        - 4: BACK
+        - 24: VOLUME UP
+        - 25: VOLUME DOWN
+        - 26: POWER
+        - 82: MENU
+
+        Args:
+            keycode: Android keycode to press
+
+        Returns:
+            Result message
+        """
+        command = f"input keyevent {keycode}"
+        return await self._adb.shell(self.serial, command)
+
+    async def start_activity(self, package: str, activity: str, extras: dict[str, str] | None = None) -> str:
+        """Start an activity using an intent.
+
+        Args:
+            package: Package name
+            activity: Activity name
+            extras: Optional intent extras as key-value pairs
+
+        Returns:
+            Result message
+        """
+        command = f"am start -n {package}/{activity}"
+
+        if extras:
+            for key, value in extras.items():
+                # Escape values that could cause issues in shell
+                safe_value = value.replace("'", "\\'").replace('"', '\\"')
+                command += f" -e {key} '{safe_value}'"
+
+        return await self._adb.shell(self.serial, command)
 
 
 class DeviceManager:

@@ -41,6 +41,13 @@ from droidmind.tools.media import (
 from droidmind.tools.shell import (
     shell_command,
 )
+from droidmind.tools.ui import (
+    input_text,
+    press_key,
+    start_intent,
+    swipe,
+    tap,
+)
 
 logger = logging.getLogger("droidmind")
 
@@ -58,10 +65,13 @@ __all__ = [
     "file_exists",
     # Utilities
     "get_device_manager",
+    # UI automation
+    "input_text",
     # App management
     "install_app",
     # File operations
     "list_directory",
+    "press_key",
     "pull_file",
     "push_file",
     "read_file",
@@ -70,5 +80,8 @@ __all__ = [
     "screenshot",
     # Shell
     "shell_command",
+    "start_intent",
+    "swipe",
+    "tap",
     "write_file",
 ]
