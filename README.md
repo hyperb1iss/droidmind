@@ -12,8 +12,7 @@
 
 </div>
 
-DroidMind is a powerful bridge between AI assistants and Android devices, enabling control, debugging, and system analysis through natural language. By implementing the Model Context Protocol (MCP), DroidMind allows AI models to directly interact with Android devices via ADB in a secure, structured way. When used as part of an agentic coding
-workflow, DroidMind can enable your assistant to build and debug with your device directly in the loop.
+DroidMind is a powerful bridge between AI assistants and Android devices, enabling control, debugging, and system analysis through natural language. By implementing the Model Context Protocol (MCP), DroidMind allows AI models to directly interact with Android devices via ADB in a secure, structured way. When used as part of an agentic coding workflow, DroidMind can enable your assistant to build and debug with your device directly in the loop.
 
 ## 💫 Features
 
@@ -21,10 +20,12 @@ workflow, DroidMind can enable your assistant to build and debug with your devic
 - 📊 **System Analysis** - Inspect device properties, view hardware info, analyze system logs
 - 🔍 **File System Access** - Browse directory contents and manage files on devices
 - 📷 **Visual Diagnostics** - Capture device screenshots for analysis and debugging
-- 📦 **App Management** - Install applications on connected devices
+- 📦 **App Management** - Install, uninstall, start, stop, and clear app data on connected devices
 - 🔄 **Multi-Device Support** - Control and switch between multiple connected devices
 - 👆 **UI Automation** - Interact with the device through taps, swipes, text input, and key presses
-- 🌈 **NeonGlam Console** - Enjoy an aesthetic terminal experience
+- 🔍 **App Inspection** - View app manifests, shared preferences, and app-specific logs
+- 🔒 **Security Framework** - Protect devices with comprehensive command validation
+- 🌈 **NeonGlam Console** - Enjoy an aesthetic terminal experience with cyberpunk vibes
 - 💬 **MCP Integration** - Seamless connection to Claude, Cursor, Cline, and more
 
 ## 🚀 Installation
@@ -84,9 +85,16 @@ droidmind --transport sse
 - `devices://list` - List all connected devices
 - `device://{serial}/properties` - Get detailed device properties
 - `logs://{serial}/logcat` - Get recent logs from the device
+- `logs://{serial}/anr` - Get Application Not Responding (ANR) traces
+- `logs://{serial}/crashes` - Get application crash logs
+- `logs://{serial}/battery` - Get battery statistics and history
+- `logs://{serial}/app/{package}` - Get application-specific logs
 - `fs://{serial}/list/{path}` - List directory contents on the device
 - `fs://{serial}/read/{path}` - Read file contents from the device
 - `fs://{serial}/stats/{path}` - Get detailed file/directory statistics
+- `app://{serial}/{package}/manifest` - Get AndroidManifest.xml contents
+- `app://{serial}/{package}/data` - List files in the app's data directory
+- `app://{serial}/{package}/shared_prefs` - Get app's shared preferences
 
 ### Tools
 
@@ -98,6 +106,11 @@ droidmind --transport sse
 - `disconnect_device` - Disconnect from an Android device
 - `shell_command` - Run a shell command on the device
 - `install_app` - Install an APK on the device
+- `uninstall_app` - Uninstall an app from the device
+- `start_app` - Start an app on the device
+- `stop_app` - Force stop an app on the device
+- `clear_app_data` - Clear app data and cache
+- `list_packages` - List installed packages on the device
 - `reboot_device` - Reboot the device (normal, recovery, or bootloader)
 - `screenshot` - Get a screenshot from a device
 - `push_file` - Upload a file to the device
@@ -122,12 +135,15 @@ With an AI assistant connected to DroidMind, try these queries:
 - "Connect to my phone at 192.168.1.100 and check its battery status"
 - "Take a screenshot of my Pixel and show me what's currently on screen"
 - "Check the available storage space on my device"
+- "Show me the ANR traces and crash logs from my device"
 - "Look at recent logs and tell me if there are any errors"
 - "Install this APK file on my device and tell me if it was successful"
 - "Show me a list of all installed apps on my phone"
 - "Reboot my device into recovery mode"
 - "What Android version is my phone running?"
 - "Check if my device is rooted and tell me its security patch level"
+- "Show me the manifest file for com.android.settings"
+- "Check the shared preferences for my app"
 - "Tap on the Settings icon at coordinates 500,1000"
 - "Swipe down from the top of the screen to open the notification shade"
 - "Input my password into the current text field"
@@ -150,13 +166,16 @@ The security system is designed to be permissive enough to allow common operatio
 
 ## 🚧 Development Status
 
-DroidMind is in active development with approximately 65% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
+DroidMind is in active development with approximately 85% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
 
 ### Current Focus Areas:
 
 1. ~~**UI Automation Development** - Adding touch, text input, and intent capabilities~~ ✅ Completed!
 2. ~~**Security Framework** - Adding command validation and safety features~~ ✅ Completed!
-3. **App Management** - Completing app lifecycle and data management tools
+3. ~~**App Management** - Completing app lifecycle and data management tools~~ ✅ Completed!
+4. ~~**File System Enhancements** - Robust file operations and metadata handling~~ ✅ Completed!
+5. **Diagnostic Tools** - Adding screen recording and advanced diagnostics 🔄 In Progress
+6. **Documentation Enhancement** - Comprehensive API docs and tutorials 🆕 New Priority
 
 ## 💻 Development
 
