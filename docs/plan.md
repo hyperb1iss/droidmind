@@ -101,9 +101,9 @@
 ### Log Resources
 
 - [x] Implement `logs://{serial}/logcat` resource
-- [ ] Add `logs://{serial}/anr` resource
-- [ ] Create `logs://{serial}/crashes` resource
-- [ ] Implement `logs://{serial}/battery` resource
+- [x] Add `logs://{serial}/anr` resource
+- [x] Create `logs://{serial}/crashes` resource
+- [x] Implement `logs://{serial}/battery` resource
 - [x] Add filtered log support
 
 ### Diagnostic Tools
@@ -231,15 +231,15 @@
 📊 Core Framework: 🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜️ 90%  
 📱 Device Management: 🟩🟩🟩🟩🟩🟩🟩⬜️⬜️⬜️ 70%  
 📁 File System: 🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜️ 90%  
-📊 Logging & Diagnostics: 🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️ 40%  
+📊 Logging & Diagnostics: 🟩🟩🟩🟩🟩🟩⬜️⬜️⬜️⬜️ 60%  
 📦 App Management: 🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️⬜️⬜️ 20%  
 🔍 UI Automation: 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 100%  
 🔒 Security: ⬜️⬜️⬜️⬜️⬜️⬜️⬜️⬜️⬜️⬜️ 0%  
 📚 Documentation: 🟩🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️ 50%  
-🧪 Testing: 🟩🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️⬜️ 30%  
+🧪 Testing: 🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️ 40%  
 🧰 Packaging: 🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️ 40%  
 🎨 UI/UX: 🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️ 40%  
 
-**Overall Progress: 55%**
+**Overall Progress: 58%**
 
 </div>

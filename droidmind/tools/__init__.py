@@ -14,7 +14,6 @@ from droidmind.tools.app_management import (
     install_app,
 )
 from droidmind.tools.device_info import (
-    device_logcat,
     device_properties,
 )
 
@@ -54,7 +53,6 @@ __all__ = [
     "connect_device",
     "create_directory",
     "delete_file",
-    "device_logcat",
     # Device info
     "device_properties",
     # Device management

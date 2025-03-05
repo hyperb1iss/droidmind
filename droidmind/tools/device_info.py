@@ -4,6 +4,7 @@ Device Information Tools - MCP tools for retrieving device information.
 This module provides MCP tools for retrieving properties and logs from connected Android devices.
 """
 
+
 from mcp.server.fastmcp import Context
 
 from droidmind.context import mcp
@@ -80,68 +81,43 @@ async def device_logcat(
     Returns:
         Recent logcat entries
     """
+    device = await get_device_manager().get_device(serial)
+    if device is None:
+        return f"Error: Device {serial} not found."
+
     try:
-        device = await get_device_manager().get_device(serial)
+        # Build logcat command
+        cmd = ["logcat", "-d", "-v", "threadtime"]
 
-        if not device:
-            return f"Device {serial} not found or not connected."
+        # Add line limit if specified
+        if lines > 0:
+            cmd.extend(["-t", str(lines)])
 
-        # Safety cap to prevent extremely large outputs
-        if lines > 100000:
-            lines = 100000
-            warning = "⚠️ Line limit was capped at 100,000 to prevent excessive output."
-        elif lines > 10000:
-            warning = "⚠️ Requesting a large number of logcat lines may impact performance and context window limits."
-        else:
-            warning = ""
+        # Add filter if specified
+        if filter_expr:
+            cmd.extend(filter_expr.split())
 
-        # Get logcat with optional filter
-        filter_to_use = filter_expr if filter_expr else None
-        logcat = await device.get_logcat(lines, filter_to_use)
+        # Join command parts
+        logcat_cmd = " ".join(cmd)
 
-        if not logcat:
-            return f"No logcat output available for device {serial}."
+        # Get logcat output
+        output = await device.run_shell(logcat_cmd)
 
-        # Truncate if needed based on max_size
-        if max_size and len(logcat) > max_size:
-            logcat_lines: list[str] = logcat.splitlines()
-            total_lines = len(logcat_lines)
-
-            # Keep beginning and end, with a notice in the middle
-            keep_lines = 200  # Lines to keep from beginning and end
-            beginning = "\n".join(logcat_lines[:keep_lines])
-            ending = "\n".join(logcat_lines[-keep_lines:])
-
-            omitted = total_lines - (2 * keep_lines)
-            middle_notice = (
-                f"\n\n... {omitted} lines omitted ({len(logcat) - len(beginning) - len(ending)} chars) ...\n\n"
-            )
-
-            logcat = beginning + middle_notice + ending
-            truncation_notice = f"\n\n⚠️ Output truncated from {len(logcat) / 1024:.1f}KB to protect context limits"
-            logcat += truncation_notice
+        # Truncate if needed
+        if max_size and len(output) > max_size:
+            output = output[:max_size] + "\n... [Output truncated due to size limit]"
 
         # Format the output
-        result = f"# Logcat for device {serial}\n\n"
-
-        # Add filter info if present
+        result = ["# Device Logcat Output 📱\n"]
+        result.append(f"## Last {lines} Lines")
         if filter_expr:
-            result += f"**Filter**: `{filter_expr}`\n\n"
+            result.append(f"\nFilter: `{filter_expr}`")
+        result.append("\n```log")
+        result.append(output)
+        result.append("```")
 
-        if warning:
-            result += f"{warning}\n\n"
+        return "\n".join(result)
 
-        # Add common filter examples for large outputs
-        if len(logcat) > 50000 and not filter_expr:
-            result += (
-                "**🔍 Pro Tip**: Large output detected. Try these filters to narrow results:\n"
-                "- `ActivityManager:I *:S` - Show only ActivityManager info logs\n"
-                "- `*:E` - Show only error logs\n"
-                "- `System.err:W *:S` - Show only System.err warnings\n\n"
-            )
-
-        result += f"```\n{logcat}\n```"
-        return result
     except Exception as e:
-        logger.exception("Error retrieving logcat: %s", e)
-        return f"Error retrieving logcat: {e!s}"
+        logger.exception("Error getting logcat output")
+        return f"Error retrieving logcat output: {e!s}"

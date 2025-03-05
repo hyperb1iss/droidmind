@@ -201,9 +201,9 @@ def run_stdio_server() -> None:
 )
 @click.option(
     "--port",
-    default=6463, # m.i.n.d
+    default=6463,  # m.i.n.d
     type=int,
-    help="Port to listen on for network connections"
+    help="Port to listen on for network connections",
 )
 @click.option(
     "--transport",
