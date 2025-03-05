@@ -29,6 +29,7 @@ dependencies = [
     "rich-gradient>=0.1.7",
     # Async file operations
     "aiofiles>=23.2.1",
+    "pillow>=11.1.0",
 ]
 
 [dependency-groups]
