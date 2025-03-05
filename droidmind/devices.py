@@ -22,6 +22,7 @@ import aiofiles
 
 from droidmind.adb import ADBWrapper
 from droidmind.log import logger
+from droidmind.security import log_command_execution, sanitize_shell_command
 
 
 # pylint: disable=too-many-public-methods
@@ -204,6 +205,15 @@ class Device:
         Returns:
             Command output with optional truncation summary
         """
+        # Sanitize and validate the shell command
+        try:
+            sanitized_command = sanitize_shell_command(command)
+            # Log command execution with appropriate risk level
+            log_command_execution(command)
+        except ValueError as e:
+            logger.error("Security validation failed for shell command: %s", e)
+            return f"Error: Command rejected for security reasons: {e}"
+
         # Handle special case where max_lines or max_size is 0 or negative
         if max_lines is not None and max_lines <= 0:
             max_lines = None
@@ -230,14 +240,14 @@ class Device:
 
         # Execute the command with appropriate line limiting if specified
         if max_lines is None:
-            output = await self._adb.shell(self._serial, command)
+            output = await self._adb.shell(self._serial, sanitized_command)
         else:
             # For positive max_lines, use head to get first N lines
             # For negative max_lines, use tail to get last N lines
             if max_lines > 0:
-                piped_command = f"{command} | head -n {max_lines}"
+                piped_command = f"{sanitized_command} | head -n {max_lines}"
             else:
-                piped_command = f"{command} | tail -n {abs(max_lines)}"
+                piped_command = f"{sanitized_command} | tail -n {abs(max_lines)}"
 
             output = await self._adb.shell(self._serial, piped_command)
 

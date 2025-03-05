@@ -226,37 +226,44 @@ async def device_battery_stats(serial: str) -> str:
         output.append(f"- **Temperature:** {temp_str}\n")
         output.append(f"- **Health:** {health}\n")
 
-        # Get battery history
-        output.append("## Battery History\n")
-        # This gives a more concise, readable format with the most relevant info
-        battery_history = await device.run_shell("dumpsys batterystats --charged | head -200")
-        output.append("```\n" + battery_history + "\n```\n")
+        # Get battery history and stats
+        output.append("## Battery History and Usage\n")
+        battery_history = await device.run_shell("dumpsys batterystats --charged")
 
-        # Get battery usage by app
-        output.append("## Battery Usage by App\n")
-        battery_usage = await device.run_shell("dumpsys batterystats --list")
-        output.append("```\n" + battery_usage + "\n```\n")
+        # Process the battery history to extract key information
+        history_lines = []
+        stats_lines = []
+        current_section = None
 
-        # Get power usage summary
-        output.append("## Power Usage Summary\n")
-        power_usage = await device.run_shell("dumpsys batterystats --checkin")
+        for line in battery_history.splitlines():
+            line = line.strip()
+            if not line:
+                continue
 
-        # Process checkin data to make it more readable
-        # This is a simplified version; in reality, parsing the checkin format
-        # would require more sophisticated processing
-        parsed_lines = []
-        for line in power_usage.splitlines()[:100]:  # Limit to first 100 lines
-            if "apk" in line and "," in line:
-                parts = line.split(",")
-                if len(parts) > 3:
-                    parsed_lines.append(f"App: {parts[2]} - UID: {parts[1]}")
+            if line.startswith("Statistics since last charge"):
+                current_section = "stats"
+            elif line.startswith("Per-app"):
+                current_section = "apps"
+            elif line.startswith("Discharge step durations"):
+                current_section = "history"
 
-        if parsed_lines:
-            output.append("```\n" + "\n".join(parsed_lines) + "\n```\n")
-        else:
-            output.append("No detailed power usage data available.\n")
+            if current_section == "history" and ("step" in line or "Estimated" in line):
+                history_lines.append(line)
+            elif ((current_section == "stats" and
+                   any(x in line for x in ["Capacity:", "Screen", "Bluetooth", "Wifi", "Cellular"])) or
+                  (current_section == "apps" and "Uid" in line and "mAh" in line)):
+                stats_lines.append(line)
+
+        output.append("### Discharge History\n```\n")
+        output.extend(history_lines[:20])  # Show last 20 discharge steps
+        output.append("\n```\n")
+
+        output.append("### Power Consumption Details\n```\n")
+        output.extend(stats_lines[:30])  # Show top 30 power consumption entries
+        output.append("\n```\n")
 
         return "\n".join(output)
+
     except Exception as e:
-        logger.exception("Error getting battery statistics")
+        logger.exception("Error getting battery stats")
         return f"Error retrieving battery statistics: {e!s}"

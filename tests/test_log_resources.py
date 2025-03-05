@@ -117,12 +117,33 @@ class TestBatteryStatsResource:
         mock_device.run_shell.side_effect = lambda cmd: {
             # Battery status
             "dumpsys battery": "Current Battery Service state:\n  level: 85\n  temperature: 350\n  health: 2",
-            # Battery history
-            "dumpsys batterystats --charged | head -200": "Battery History (1% used, 99% free):\n...",
-            # Battery usage by app
-            "dumpsys batterystats --list": "App usage:\nPackage1: 10%\nPackage2: 5%",
-            # Battery stats checkin format
-            "dumpsys batterystats --checkin": "9,0,i,vers,12,116,s84\n9,0,i,uid,10008,com.android.app1\n9,0,i,uid,10009,com.android.app2",
+            # Battery history and stats
+            "dumpsys batterystats --charged": """
+Discharge step durations:
+  #0: +1m30s092ms to 85 (screen-off)
+  #1: +1m30s019ms to 86 (screen-off)
+  #2: +1m29s982ms to 87 (screen-off)
+Estimated discharge time remaining: +3h45m20s
+Estimated screen off time: 5h 15m 30s
+
+Statistics since last charge:
+  System starts: 0, currently on battery: true
+  Time on battery: 2h 15m 30s
+  Time on battery screen off: 1h 45m 20s
+  Screen on: 30m 10s (22.3%) 25x
+  Screen brightnesses:
+    dark 2m 10s (7.2%)
+    dim 20m 15s (67.1%)
+    medium 5m 25s (17.9%)
+    bright 2m 20s (7.8%)
+
+  Cellular Statistics:
+    Cellular active time: 15m 30s
+  Wifi Statistics:
+    Wifi active time: 2h 10m 15s
+  Bluetooth Statistics:
+    Bluetooth scan time: 1h 30m 45s
+"""
         }[cmd]
         return mock_device
 
@@ -147,6 +168,11 @@ class TestBatteryStatsResource:
             assert "**Battery Level:** 85%" in result
             assert "**Temperature:** 35.0°C" in result
             assert "**Health:** Good" in result
-            assert "## Battery History" in result
-            assert "## Battery Usage by App" in result
-            assert "## Power Usage Summary" in result
+            assert "## Battery History and Usage" in result
+            assert "### Discharge History" in result
+            assert "### Power Consumption Details" in result
+            assert "Estimated discharge time remaining" in result
+            assert "Screen brightnesses" in result
+            assert "Cellular Statistics" in result
+            assert "Wifi Statistics" in result
+            assert "Bluetooth Statistics" in result

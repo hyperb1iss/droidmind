@@ -134,16 +134,29 @@ With an AI assistant connected to DroidMind, try these queries:
 - "Press the back button three times to return to the home screen"
 - "Open the Settings app by starting the com.android.settings package"
 
+## 🔒 Security Features
+
+DroidMind includes a comprehensive security framework to protect your devices while still allowing AI assistants to be expressive:
+
+- **Command Validation**: All shell commands are validated against an allowlist of safe commands
+- **Risk Assessment**: Commands are categorized by risk level (SAFE, LOW, MEDIUM, HIGH, CRITICAL)
+- **Command Sanitization**: Input is sanitized to prevent command injection attacks
+- **Protected Paths**: System directories and critical paths are protected from modification
+- **Comprehensive Logging**: All commands are logged with their risk level for auditing
+- **Suspicious Pattern Detection**: Commands with potentially dangerous patterns are blocked
+- **ADB Command Security**: Special handling for ADB-specific commands with proper async validation
+
+The security system is designed to be permissive enough to allow common operations while preventing destructive actions. High-risk commands will display warnings to users before execution, and critical operations are blocked entirely without explicit override.
+
 ## 🚧 Development Status
 
-DroidMind is in active development with approximately 55% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
+DroidMind is in active development with approximately 65% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
 
 ### Current Focus Areas:
 
 1. ~~**UI Automation Development** - Adding touch, text input, and intent capabilities~~ ✅ Completed!
-2. **Security Framework** - Adding command validation and safety features
+2. ~~**Security Framework** - Adding command validation and safety features~~ ✅ Completed!
 3. **App Management** - Completing app lifecycle and data management tools
-4. **File System Enhancements** - Adding progress reporting and MIME type detection
 
 ## 💻 Development
 

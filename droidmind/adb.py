@@ -11,6 +11,7 @@ import re
 import shlex
 
 from droidmind.log import logger
+from droidmind.security import log_command_execution, validate_adb_command
 
 
 class ADBWrapper:
@@ -55,10 +56,19 @@ class ADBWrapper:
         Raises:
             RuntimeError: If command fails and check=True
         """
+        # Validate the ADB command for security
+        try:
+            await validate_adb_command(args)
+        except ValueError as e:
+            logger.error("Security validation failed for ADB command: %s", e)
+            raise RuntimeError(f"Security validation failed: {e}") from e
+
         cmd = [self.adb_path, *args]
         logger.debug("Using ADB path for command: %s", self.adb_path)
         cmd_str = " ".join(shlex.quote(arg) for arg in cmd)
 
+        # Log command execution
+        log_command_execution(" ".join(args))
         logger.debug("Running ADB command: %s", cmd_str)
 
         try:
