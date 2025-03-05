@@ -81,7 +81,7 @@ droidmind --transport sse
 
 ### Resources
 
-- `device://list` - List all connected devices
+- `devices://list` - List all connected devices
 - `device://{serial}/properties` - Get detailed device properties
 - `logs://{serial}/logcat` - Get recent logs from the device
 - `fs://{serial}/list/{path}` - List directory contents on the device
@@ -136,14 +136,14 @@ With an AI assistant connected to DroidMind, try these queries:
 
 ## 🚧 Development Status
 
-DroidMind is in active development with approximately 45% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
+DroidMind is in active development with approximately 55% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
 
 ### Current Focus Areas:
 
 1. ~~**UI Automation Development** - Adding touch, text input, and intent capabilities~~ ✅ Completed!
 2. **Security Framework** - Adding command validation and safety features
 3. **App Management** - Completing app lifecycle and data management tools
-4. **Documentation Expansion** - Creating comprehensive guides and API references
+4. **File System Enhancements** - Adding progress reporting and MIME type detection
 
 ## 💻 Development
 
