@@ -235,7 +235,7 @@ section-order = [
 
 # Allow catching blind exceptions in prompts, resources, and tools 
 "droidmind/prompts.py" = ["BLE001", "ARG001"]
-"droidmind/resources.py" = ["BLE001", "ARG001"]
+"droidmind/resources/**/*.py" = ["BLE001", "ARG001"]
 "droidmind/tools/**/*.py" = ["BLE001", "ARG001"]
 
 # Allow accessing private members in server.py for MCP server access

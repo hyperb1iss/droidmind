@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from droidmind.devices import Device, DeviceManager
-from droidmind.resources import device_anr_logs, device_battery_stats, device_crash_logs
+from droidmind.resources.logs import device_anr_logs, device_battery_stats, device_crash_logs
 
 
 @pytest.mark.asyncio
@@ -45,7 +45,7 @@ class TestANRResource:
     async def test_anr_logs_basic(self, mock_device, mock_device_manager):
         """Test basic ANR logs functionality."""
         # Patch the device manager to return our mock
-        with patch("droidmind.resources.get_device_manager", return_value=mock_device_manager):
+        with patch("droidmind.resources.logs.get_device_manager", return_value=mock_device_manager):
             # Call the resource
             result = await device_anr_logs("test_device")
 
@@ -89,7 +89,7 @@ class TestCrashLogsResource:
     async def test_crash_logs_basic(self, mock_device, mock_device_manager):
         """Test basic crash logs functionality."""
         # Patch the device manager to return our mock
-        with patch("droidmind.resources.get_device_manager", return_value=mock_device_manager):
+        with patch("droidmind.resources.logs.get_device_manager", return_value=mock_device_manager):
             # Call the resource
             result = await device_crash_logs("test_device")
 
@@ -136,7 +136,7 @@ class TestBatteryStatsResource:
     async def test_battery_stats_basic(self, mock_device, mock_device_manager):
         """Test basic battery stats functionality."""
         # Patch the device manager to return our mock
-        with patch("droidmind.resources.get_device_manager", return_value=mock_device_manager):
+        with patch("droidmind.resources.logs.get_device_manager", return_value=mock_device_manager):
             # Call the resource
             result = await device_battery_stats("test_device")
 

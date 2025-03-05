@@ -4,7 +4,6 @@ Device Information Tools - MCP tools for retrieving device information.
 This module provides MCP tools for retrieving properties and logs from connected Android devices.
 """
 
-
 from mcp.server.fastmcp import Context
 
 from droidmind.context import mcp
