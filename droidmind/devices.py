@@ -16,6 +16,7 @@ import re
 import string
 import tempfile
 import time
+from urllib.parse import unquote
 
 import aiofiles
 
@@ -593,18 +594,21 @@ class DeviceManager:
         """Get a Device instance by serial number.
 
         Args:
-            serial: Device serial number
+            serial: Device serial number (URL-encoded if from resource path)
 
         Returns:
             Device instance or None if not found
         """
+        # Decode URL-encoded serial (handles colons in TCP/IP addresses)
+        decoded_serial = unquote(serial)
+
         devices_info = await self._adb.get_devices()
 
-        device_exists = any(device["serial"] == serial for device in devices_info)
+        device_exists = any(device["serial"] == decoded_serial for device in devices_info)
         if not device_exists:
             return None
 
-        return Device(serial, adb=self._adb)
+        return Device(decoded_serial, adb=self._adb)
 
     async def connect(self, ip_address: str, port: int = 5555) -> Device | None:
         """Connect to a device over TCP/IP.
