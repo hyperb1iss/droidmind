@@ -143,7 +143,7 @@ Statistics since last charge:
     Wifi active time: 2h 10m 15s
   Bluetooth Statistics:
     Bluetooth scan time: 1h 30m 45s
-"""
+""",
         }[cmd]
         return mock_device
 

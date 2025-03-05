@@ -249,9 +249,10 @@ async def device_battery_stats(serial: str) -> str:
 
             if current_section == "history" and ("step" in line or "Estimated" in line):
                 history_lines.append(line)
-            elif ((current_section == "stats" and
-                   any(x in line for x in ["Capacity:", "Screen", "Bluetooth", "Wifi", "Cellular"])) or
-                  (current_section == "apps" and "Uid" in line and "mAh" in line)):
+            elif (
+                current_section == "stats"
+                and any(x in line for x in ["Capacity:", "Screen", "Bluetooth", "Wifi", "Cellular"])
+            ) or (current_section == "apps" and "Uid" in line and "mAh" in line):
                 stats_lines.append(line)
 
         output.append("### Discharge History\n```\n")

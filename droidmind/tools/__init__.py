@@ -7,11 +7,14 @@ Tools are organized by functionality into separate modules.
 
 import logging
 
-from mcp.server.fastmcp import Context
-
-from droidmind.devices import DeviceManager, get_device_manager
+from droidmind.devices import get_device_manager
 from droidmind.tools.app_management import (
+    clear_app_data,
     install_app,
+    list_packages,
+    start_app,
+    stop_app,
+    uninstall_app,
 )
 from droidmind.tools.device_info import (
     device_properties,

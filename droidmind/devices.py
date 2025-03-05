@@ -22,6 +22,7 @@ import aiofiles
 
 from droidmind.adb import ADBWrapper
 from droidmind.log import logger
+from droidmind.packages import parse_package_list
 from droidmind.security import log_command_execution, sanitize_shell_command
 
 
@@ -358,6 +359,181 @@ class Device:
             Installation result
         """
         return await self._adb.install_app(self._serial, apk_path, reinstall, grant_permissions)
+
+    async def uninstall_app(self, package: str, keep_data: bool = False) -> str:
+        """
+        Uninstall an app from the device.
+
+        Args:
+            package: Package name to uninstall
+            keep_data: Whether to keep app data and cache directories
+
+        Returns:
+            Uninstallation result message
+        """
+        log_command_execution(f"Uninstalling package {package} from {self._serial}")
+
+        cmd = ["pm", "uninstall"]
+        if keep_data:
+            cmd.append("-k")
+        cmd.append(package)
+
+        result = await self.run_shell(" ".join(cmd))
+        return result.strip()
+
+    async def start_app(self, package: str, activity: str = "") -> str:
+        """
+        Start an app on the device.
+
+        Args:
+            package: Package name to start
+            activity: Optional activity name to start (if empty, launches the default activity)
+
+        Returns:
+            Result message
+        """
+        log_command_execution(f"Starting package {package} on {self._serial}")
+
+        if activity:
+            if not activity.startswith(".") and "." not in activity:
+                activity = f".{activity}"
+
+            if not activity.startswith(".") and "." in activity and not activity.startswith(package):
+                # Fully qualified activity name
+                return await self.start_activity(
+                    activity.split("/")[0], activity.split("/", 1)[1] if "/" in activity else activity
+                )
+
+            # Relative activity name
+            return await self.start_activity(package, activity)
+
+        # Start main activity
+        cmd = f"monkey -p {package} -c android.intent.category.LAUNCHER 1"
+        result = await self.run_shell(cmd)
+
+        if "No activities found" in result:
+            return f"Error: No launchable activities found for {package}"
+
+        return f"Started package {package}"
+
+    async def stop_app(self, package: str) -> str:
+        """
+        Force stop an app on the device.
+
+        Args:
+            package: Package name to stop
+
+        Returns:
+            Result message
+        """
+        log_command_execution(f"Stopping package {package} on {self._serial}")
+
+        cmd = f"am force-stop {package}"
+        await self.run_shell(cmd)
+
+        return f"Stopped package {package}"
+
+    async def clear_app_data(self, package: str) -> str:
+        """
+        Clear app data and cache for the specified package.
+
+        Args:
+            package: Package name to clear data for
+
+        Returns:
+            Result message
+        """
+        log_command_execution(f"Clearing data for package {package} on {self._serial}")
+
+        cmd = f"pm clear {package}"
+        result = await self.run_shell(cmd)
+
+        if "Success" in result:
+            return f"Successfully cleared data for package {package}"
+
+        return f"Failed to clear data for package {package}: {result}"
+
+    async def get_app_list(self, include_system_apps: bool = False) -> list[dict[str, str]]:
+        """Get a list of installed applications.
+
+        Args:
+            include_system_apps: Whether to include system apps in the result
+
+        Returns:
+            List of dicts with package information
+        """
+        cmd = ["pm", "list", "packages", "-f"]  # -f to get APK paths
+        if not include_system_apps:
+            cmd.append("-3")  # Only third-party apps
+
+        result = await self.run_shell(" ".join(cmd))
+
+        return parse_package_list(result)
+
+    async def get_app_info(self, package: str) -> dict[str, str]:
+        """Get detailed information about an installed app.
+        This method provides comprehensive details about a specific package.
+        For a simple list of installed packages, use ADBWrapper.list_apps() instead.
+
+        Args:
+            package: Package name to get information for
+
+        Returns:
+            Dictionary with detailed app information including:
+            - version: App version name
+            - install_path: Installation path
+            - first_install: First installation timestamp
+            - user_id: App's user ID
+            - permissions: Comma-separated list of requested permissions
+            - raw_dump: Complete dumpsys output
+        """
+        cmd = f"dumpsys package {package}"
+        # Set max_lines to None to retrieve the complete dumpsys output
+        result = await self.run_shell(cmd, max_lines=None)
+
+        if f"Unable to find package: {package}" in result:
+            return {"error": f"Package {package} not found"}
+
+        info = {"raw_dump": result}
+
+        # Extract version info
+        version_match = re.search(r"versionName=([^\s]+)", result)
+        if version_match:
+            info["version"] = version_match.group(1)
+
+        # Extract installation path
+        path_match = re.search(r"codePath=([^\s]+)", result)
+        if path_match:
+            info["install_path"] = path_match.group(1)
+
+        # Extract first install time
+        time_match = re.search(r"firstInstallTime=([^\s]+)", result)
+        if time_match:
+            info["first_install"] = time_match.group(1)
+
+        # Extract user ID
+        uid_match = re.search(r"userId=(\d+)", result)
+        if uid_match:
+            info["user_id"] = uid_match.group(1)
+
+        # Extract requested permissions
+        permissions = []
+        perm_section = False
+        for line in result.splitlines():
+            if "requested permissions:" in line:
+                perm_section = True
+                continue
+            if perm_section:
+                if not line.strip() or not line.startswith(" "):
+                    perm_section = False
+                    continue
+                permissions.append(line.strip())
+
+        # Join permissions into a comma-separated string
+        if permissions:
+            info["permissions"] = ", ".join(permissions)
+
+        return info
 
     async def push_file(self, local_path: str, device_path: str) -> str:
         """Push a file to the device.

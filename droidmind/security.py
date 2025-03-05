@@ -19,6 +19,7 @@ from droidmind.log import logger
 
 class RiskLevel(Enum):
     """Risk level for operations."""
+
     SAFE = auto()
     LOW = auto()
     MEDIUM = auto()
@@ -30,70 +31,230 @@ class RiskLevel(Enum):
 # This is a comprehensive list of generally safe commands
 ALLOWED_SHELL_COMMANDS: set[str] = {
     # File operations (read-only)
-    "cd", "ls", "find", "grep", "cat", "head", "tail", "wc", "du", "df",
-    "stat", "file", "readlink", "dirname", "basename", "pwd", "realpath",
-    "which", "whoami", "id", "groups", "md5sum", "sha1sum", "sha256sum",
-    "sha512sum", "cksum", "cmp", "diff", "sort", "uniq", "tr", "cut",
-    "comm", "od", "hexdump", "xxd", "strings", "base64", "expr", "seq",
-    "printf", "echo", "yes", "false", "true", "test", "[", "[[",
-
+    "cd",
+    "ls",
+    "find",
+    "grep",
+    "cat",
+    "head",
+    "tail",
+    "wc",
+    "du",
+    "df",
+    "stat",
+    "file",
+    "readlink",
+    "dirname",
+    "basename",
+    "pwd",
+    "realpath",
+    "which",
+    "whoami",
+    "id",
+    "groups",
+    "md5sum",
+    "sha1sum",
+    "sha256sum",
+    "sha512sum",
+    "cksum",
+    "cmp",
+    "diff",
+    "sort",
+    "uniq",
+    "tr",
+    "cut",
+    "comm",
+    "od",
+    "hexdump",
+    "xxd",
+    "strings",
+    "base64",
+    "expr",
+    "seq",
+    "printf",
+    "echo",
+    "yes",
+    "false",
+    "true",
+    "test",
+    "[",
+    "[[",
     # Process information
-    "ps", "pgrep", "pidof", "top", "uptime", "vmstat", "lsof", "netstat",
-    "ifconfig", "ip", "ss", "arp", "route", "traceroute", "ping",
-
+    "ps",
+    "pgrep",
+    "pidof",
+    "top",
+    "uptime",
+    "vmstat",
+    "lsof",
+    "netstat",
+    "ifconfig",
+    "ip",
+    "ss",
+    "arp",
+    "route",
+    "traceroute",
+    "ping",
     # System information
-    "uname", "hostname", "dmesg", "getprop", "getenforce", "date", "time",
-    "hwclock", "ionice", "lsmod", "lspci", "lsusb", "free", "sysctl",
-
+    "uname",
+    "hostname",
+    "dmesg",
+    "getprop",
+    "getenforce",
+    "date",
+    "time",
+    "hwclock",
+    "ionice",
+    "lsmod",
+    "lspci",
+    "lsusb",
+    "free",
+    "sysctl",
     # Android-specific
-    "am", "pm", "dumpsys", "bugreport", "logcat", "settings", "service",
-    "content", "input", "screencap", "screenrecord", "wm", "ime",
-
+    "am",
+    "pm",
+    "dumpsys",
+    "bugreport",
+    "logcat",
+    "settings",
+    "service",
+    "content",
+    "input",
+    "screencap",
+    "screenrecord",
+    "wm",
+    "ime",
     # Text processing
-    "awk", "sed", "xargs", "tee", "nl", "fold", "expand", "unexpand",
-    "column", "rev", "tac", "less", "more", "zcat", "gzip", "gunzip",
-    "bzip2", "bunzip2", "xz", "unxz", "lzma", "unlzma", "zip", "unzip",
-
+    "awk",
+    "sed",
+    "xargs",
+    "tee",
+    "nl",
+    "fold",
+    "expand",
+    "unexpand",
+    "column",
+    "rev",
+    "tac",
+    "less",
+    "more",
+    "zcat",
+    "gzip",
+    "gunzip",
+    "bzip2",
+    "bunzip2",
+    "xz",
+    "unxz",
+    "lzma",
+    "unlzma",
+    "zip",
+    "unzip",
     # Misc utilities
-    "sleep", "timeout", "watch", "cal", "clear", "env", "printenv",
-    "locale", "inotifyd", "nice", "nohup", "taskset", "ulimit",
+    "sleep",
+    "timeout",
+    "watch",
+    "cal",
+    "clear",
+    "env",
+    "printenv",
+    "locale",
+    "inotifyd",
+    "nice",
+    "nohup",
+    "taskset",
+    "ulimit",
     "usleep",
 }
 
 # Commands that are explicitly disallowed due to their destructive potential
 DISALLOWED_SHELL_COMMANDS: set[str] = {
     # System modification
-    "mkfs", "mke2fs", "mkswap", "swapon", "swapoff",
-    "mount", "umount", "reboot", "poweroff", "halt", "shutdown",
-    "init", "telinit", "runlevel", "insmod", "rmmod", "modprobe",
-
+    "mkfs",
+    "mke2fs",
+    "mkswap",
+    "swapon",
+    "swapoff",
+    "mount",
+    "umount",
+    "reboot",
+    "poweroff",
+    "halt",
+    "shutdown",
+    "init",
+    "telinit",
+    "runlevel",
+    "insmod",
+    "rmmod",
+    "modprobe",
     # Process control
-    "kill", "killall", "pkill", "renice", "setsid", "chroot",
-
+    "kill",
+    "killall",
+    "pkill",
+    "renice",
+    "setsid",
+    "chroot",
     # User management
-    "useradd", "userdel", "usermod", "groupadd", "groupdel", "groupmod",
-    "passwd", "chpasswd", "su", "sudo", "chsh", "chfn",
-
+    "useradd",
+    "userdel",
+    "usermod",
+    "groupadd",
+    "groupdel",
+    "groupmod",
+    "passwd",
+    "chpasswd",
+    "su",
+    "sudo",
+    "chsh",
+    "chfn",
     # Dangerous Android commands
-    "setprop", "setenforce", "flash", "fastboot", "recovery", "format",
+    "setprop",
+    "setenforce",
+    "flash",
+    "fastboot",
+    "recovery",
+    "format",
 }
 
 # Patterns that might indicate command injection attempts
 SUSPICIOUS_PATTERNS: list[str] = [
-    r";\s*rm\s+", r"&&\s*rm\s+", r"\|\s*rm\s+",  # rm command injection
-    r";\s*reboot", r"&&\s*reboot", r"\|\s*reboot",  # reboot injection
-    r">\s*/system", r">>\s*/system",  # writing to system
-    r">\s*/data", r">>\s*/data",  # writing to data
-    r">\s*/proc", r">>\s*/proc",  # writing to proc
-    r">\s*/dev", r">>\s*/dev",  # writing to dev
-    r";\s*dd", r"&&\s*dd", r"\|\s*dd",  # dd command injection
-    r";\s*mkfs", r"&&\s*mkfs", r"\|\s*mkfs",  # filesystem formatting
+    r";\s*rm\s+",
+    r"&&\s*rm\s+",
+    r"\|\s*rm\s+",  # rm command injection
+    r";\s*reboot",
+    r"&&\s*reboot",
+    r"\|\s*reboot",  # reboot injection
+    r">\s*/system",
+    r">>\s*/system",  # writing to system
+    r">\s*/data",
+    r">>\s*/data",  # writing to data
+    r">\s*/proc",
+    r">>\s*/proc",  # writing to proc
+    r">\s*/dev",
+    r">>\s*/dev",  # writing to dev
+    r";\s*dd",
+    r"&&\s*dd",
+    r"\|\s*dd",  # dd command injection
+    r";\s*mkfs",
+    r"&&\s*mkfs",
+    r"\|\s*mkfs",  # filesystem formatting
 ]
 
 # Paths that should be protected from modification
 PROTECTED_PATHS: list[str] = [
-    "/system", "/vendor", "/product", "/apex", "/boot", "/recovery",
-    "/proc", "/sys", "/dev", "/etc", "/bin", "/sbin", "/lib", "/lib64",
+    "/system",
+    "/vendor",
+    "/product",
+    "/apex",
+    "/boot",
+    "/recovery",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/etc",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib64",
 ]
 
 
@@ -252,7 +413,7 @@ async def validate_adb_command(command: list[str]) -> bool:
     try:
         shell_idx = command.index("shell")
         if len(command) > shell_idx + 1:
-            shell_command = " ".join(command[shell_idx + 1:])
+            shell_command = " ".join(command[shell_idx + 1 :])
             validate_shell_command(shell_command)
     except ValueError:
         # Not a shell command, assume other ADB commands are safe
@@ -278,7 +439,7 @@ def log_command_execution(command: str, risk_level: RiskLevel | None = None) -> 
         try:
             shell_idx = parts.index("shell")
             if shell_idx + 1 < len(parts):
-                cmd_for_risk = " ".join(parts[shell_idx + 1:])
+                cmd_for_risk = " ".join(parts[shell_idx + 1 :])
         except ValueError:
             # Not a shell command, treat as safe ADB command
             cmd_for_risk = parts[0] if parts else command

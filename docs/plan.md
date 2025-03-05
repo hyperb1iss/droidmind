@@ -94,7 +94,6 @@
 - [x] Add `file_exists` tool
 - [x] Implement `read_file` tool
 - [x] Implement `write_file` tool
-- [ ] Add progress reporting for file transfers
 
 ## 📊 Logging and Diagnostics
 
@@ -117,18 +116,18 @@
 
 ### App Resources
 
-- [ ] Implement `fs://{serial}/app/{package}/manifest` resource
-- [ ] Add `fs://{serial}/app/{package}/data` resource
-- [ ] Create `fs://{serial}/app/{package}/shared_prefs` resource
-- [ ] Implement `logs://{serial}/app/{package}` resource
+- [x] Implement `fs://{serial}/app/{package}/manifest` resource
+- [x] Add `fs://{serial}/app/{package}/data` resource
+- [x] Create `fs://{serial}/app/{package}/shared_prefs` resource
+- [x] Implement `logs://{serial}/app/{package}` resource
 
 ### App Tools
 
 - [x] Implement `install_app` tool
-- [ ] Add `uninstall_app` tool
-- [ ] Create `start_app` tool
-- [ ] Implement `stop_app` tool
-- [ ] Add `clear_app_data` tool
+- [x] Add `uninstall_app` tool
+- [x] Create `start_app` tool
+- [x] Implement `stop_app` tool
+- [x] Add `clear_app_data` tool
 
 ## 🔍 UI Automation
 
@@ -212,15 +211,20 @@
    - ~~Create permission system for dangerous operations~~
    - ~~Add risk level categorization for operations~~
 
-3. **App Management** 🔄 **In Progress**
-   - Complete app lifecycle management tools (uninstall, start, stop)
-   - Add app data management capabilities
-   - Implement app-specific logging and diagnostics
+3. ~~**App Management**~~ ✅ **Completed!**
+   - ~~Complete app lifecycle management tools (uninstall, start, stop)~~
+   - ~~Add app data management capabilities~~
+   - ~~Implement app-specific logging and diagnostics~~
 
 4. **File System Enhancements** 🔄 **In Progress**
    - Add progress reporting for file transfers
    - Implement MIME type detection
    - Add more file manipulation capabilities
+
+5. **Diagnostic Tools** 🆕 **New Priority**
+   - Implement `record_screen` tool
+   - Create `capture_bugreport` tool
+   - Implement `dump_heap` tool
 
 ---
 
@@ -232,7 +236,7 @@
 📱 Device Management: 🟩🟩🟩🟩🟩🟩🟩⬜️⬜️⬜️ 70%  
 📁 File System: 🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜️ 90%  
 📊 Logging & Diagnostics: 🟩🟩🟩🟩🟩🟩⬜️⬜️⬜️⬜️ 60%  
-📦 App Management: 🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️⬜️⬜️ 20%  
+📦 App Management: 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 100%  
 🔍 UI Automation: 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 100%  
 🔒 Security: 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 100%  
 📚 Documentation: 🟩🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️ 50%  
@@ -240,6 +244,6 @@
 🧰 Packaging: 🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️ 40%  
 🎨 UI/UX: 🟩🟩🟩🟩⬜️⬜️⬜️⬜️⬜️⬜️ 40%  
 
-**Overall Progress: 65%**
+**Overall Progress: 70%**
 
 </div>

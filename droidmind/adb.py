@@ -11,6 +11,7 @@ import re
 import shlex
 
 from droidmind.log import logger
+from droidmind.packages import parse_package_list
 from droidmind.security import log_command_execution, validate_adb_command
 
 
@@ -641,64 +642,20 @@ class ADBWrapper:
             logger.exception("Error capturing screenshot from %s: %s", serial, e)
             raise RuntimeError(f"Screenshot capture failed: {e!s}") from e
 
-    async def list_apps(self, serial: str, system_apps: bool = False) -> list[dict[str, str]]:
-        """List installed apps on the device.
+    async def list_apps(self, serial: str, include_system_apps: bool = False) -> list[dict[str, str]]:
+        """List basic information about installed applications on the device.
+        For detailed app information, use Device.get_app_info() instead.
 
         Args:
-            serial: The device serial number.
-            system_apps: Whether to include system apps.
+            serial: Device serial number
+            include_system_apps: Whether to include system apps
 
         Returns:
-            List of dictionaries with app information.
-
-        Raises:
-            ValueError: If device is not connected.
+            List of dicts containing basic package info (package name and installation path)
         """
-        # Check if device is connected
-        devices = await self.get_devices()
-        device_serials = [d["serial"] for d in devices]
+        cmd = ["pm", "list", "packages", "-f"]
+        if not include_system_apps:
+            cmd.append("-3")
 
-        if serial not in device_serials:
-            raise ValueError(f"Device {serial} not connected")
-
-        flags = "-3" if not system_apps else ""
-        result = await self.shell(serial, f"pm list packages {flags} -f")
-
-        apps = []
-        for line in result.splitlines():
-            if not line.startswith("package:"):
-                continue
-
-            # Parse package info
-            # Format: package:/data/app/com.example.app-hash=.../base.apk=com.example.app
-            parts = line[8:].split("=")
-            if len(parts) < 2:
-                continue
-
-            apk_path = parts[0]
-            package_name = parts[-1]
-
-            # Get app label if possible
-            try:
-                label_result = await self.shell(
-                    serial,
-                    f'dumpsys package {package_name} | grep "applicationInfo" | grep "labelRes"',
-                )
-                label = "Unknown"
-                if label_result:
-                    label_match = re.search(r"label=(.*?)\s", label_result)
-                    if label_match:
-                        label = label_match.group(1)
-            except (TimeoutError, ValueError, RuntimeError) as e:
-                logger.debug("Could not get app label for %s: %s", package_name, e)
-                label = "Unknown"
-
-            apps.append(
-                {
-                    "package": package_name,
-                    "path": apk_path,
-                    "label": label,
-                }
-            )
-
-        return apps
+        stdout = await self.shell(serial, " ".join(cmd))
+        return parse_package_list(stdout)
