@@ -1,7 +1,6 @@
 """Package management utilities for DroidMind."""
 
 
-
 def parse_package_list(output: str) -> list[dict[str, str]]:
     """Parse the output of 'pm list packages -f' command.
 

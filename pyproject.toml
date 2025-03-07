@@ -255,6 +255,7 @@ section-order = [
     "S101",    # Allow asserts in tests
     "S105",    # Allow hardcoded passwords in variable assignments (it's just test data!)
     "S106",    # Allow hardcoded passwords as arguments (it's just test data!)
+    "S108",    # Ignore insecure usage of temporary files
     "SLF001",  # Allow private member access in tests
     "BLE001",  # Allow catching blind exceptions in tests
 ]

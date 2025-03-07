@@ -27,6 +27,10 @@ from droidmind.tools.device_management import (
     disconnect_device,
     reboot_device,
 )
+from droidmind.tools.diagnostics import (
+    capture_bugreport,
+    dump_heap,
+)
 from droidmind.tools.file_operations import (
     create_directory,
     delete_file,
@@ -53,6 +57,9 @@ from droidmind.tools.ui import (
 
 # Re-export get_device_manager for backward compatibility
 __all__ = [
+    # Diagnostics
+    "capture_bugreport",
+    # Device management
     "connect_device",
     "create_directory",
     "delete_file",
@@ -61,6 +68,7 @@ __all__ = [
     # Device management
     "devicelist",
     "disconnect_device",
+    "dump_heap",
     "file_exists",
     # Utilities
     "get_device_manager",

@@ -113,6 +113,8 @@ droidmind --transport sse
 - `list_packages` - List installed packages on the device
 - `reboot_device` - Reboot the device (normal, recovery, or bootloader)
 - `screenshot` - Get a screenshot from a device
+- `capture_bugreport` - Generate a comprehensive bug report from the device
+- `dump_heap` - Create a heap dump from a running process for memory analysis
 - `push_file` - Upload a file to the device
 - `pull_file` - Download a file from the device
 - `delete_file` - Delete a file or directory from the device
@@ -166,7 +168,7 @@ The security system is designed to be permissive enough to allow common operatio
 
 ## 🚧 Development Status
 
-DroidMind is in active development with approximately 85% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
+DroidMind is in active development with approximately 90% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
 
 ### Current Focus Areas:
 
@@ -174,8 +176,12 @@ DroidMind is in active development with approximately 85% of planned features im
 2. ~~**Security Framework** - Adding command validation and safety features~~ ✅ Completed!
 3. ~~**App Management** - Completing app lifecycle and data management tools~~ ✅ Completed!
 4. ~~**File System Enhancements** - Robust file operations and metadata handling~~ ✅ Completed!
-5. **Diagnostic Tools** - Adding screen recording and advanced diagnostics 🔄 In Progress
-6. **Documentation Enhancement** - Comprehensive API docs and tutorials 🆕 New Priority
+5. **Diagnostic Tools** - Adding advanced diagnostics ✅ Major progress!
+   - ~~Screenshot tool~~ ✅ Completed
+   - ~~Bug report generation~~ ✅ Completed
+   - ~~Heap dump analysis~~ ✅ Completed
+   - Screen recording 🔄 Pending
+6. **Documentation Enhancement** - Comprehensive API docs and tutorials 🔄 In Progress
 
 ## 💻 Development
 
