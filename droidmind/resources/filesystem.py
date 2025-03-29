@@ -1,4 +1,9 @@
-"""Filesystem resources for DroidMind."""
+"""
+Filesystem resources for DroidMind.
+
+DEPRECATED: This module is being deprecated in favor of using tools for all filesystem operations.
+Please use the equivalent tools in droidmind.tools.file_operations instead.
+"""
 
 import os
 import re

@@ -35,6 +35,7 @@ from droidmind.tools.file_operations import (
     create_directory,
     delete_file,
     file_exists,
+    file_stats,
     list_directory,
     pull_file,
     push_file,
@@ -70,6 +71,8 @@ __all__ = [
     "disconnect_device",
     "dump_heap",
     "file_exists",
+    # File operations
+    "file_stats",
     # Utilities
     "get_device_manager",
     # UI automation
