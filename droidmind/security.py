@@ -116,6 +116,7 @@ ALLOWED_SHELL_COMMANDS: set[str] = {
     "dumpsys",
     "bugreport",
     "logcat",
+    "monkey",
     "settings",
     "service",
     "content",
