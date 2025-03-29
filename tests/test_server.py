@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code
+
 """Tests for the DroidMind MCP tools and resources."""
 
 from unittest.mock import AsyncMock, MagicMock, patch

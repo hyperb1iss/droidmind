@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 """Tests for UI automation tools."""
 
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -23,11 +23,10 @@ from starlette.requests import Request
 from starlette.routing import Mount, Route
 import uvicorn
 
-# Annotated modules with MCP prompts, resources, and tools
+# Annotated modules with MCP prompts and tools
 from droidmind import (  # noqa: F401
     console,
     prompts,
-    resources,
     tools,
 )
 from droidmind.context import mcp
@@ -306,4 +305,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main(host="127.0.0.1", port=4256, transport="sse", debug=False, log_level="INFO", adb_path="adb")
+    main(host="127.0.0.1", port=4256, transport="sse", debug=False, log_level="INFO", log_file=None, adb_path="adb")

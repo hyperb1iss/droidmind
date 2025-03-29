@@ -7,6 +7,7 @@ from Android devices, including logcat, ANR traces, crash reports, and battery s
 
 import os
 import re
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
@@ -16,7 +17,7 @@ from droidmind.log import logger
 
 
 async def _get_filtered_logcat(
-    device,
+    device: Any,
     filter_expr: str,
     lines: int = 1000,
     buffer: str = "main",
@@ -453,5 +454,5 @@ async def app_logs(serial: str, package: str, ctx: Context, lines: int = 1000) -
         return "\n".join(result)
 
     except Exception as e:
-        logger.exception(f"Error getting logs for app {package}")
+        logger.exception("Error getting logs for app %s", package)
         return f"Error retrieving app logs: {e!s}"

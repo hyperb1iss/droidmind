@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from droidmind.devices import Device, DeviceManager
-from droidmind.resources.app_resources import app_manifest
 from droidmind.tools.app_management import (
     clear_app_data,
+    get_app_manifest,
     list_packages,
     start_app,
     stop_app,
@@ -146,10 +146,10 @@ async def test_list_packages(mock_device_manager, mock_context):
 
 
 @pytest.mark.asyncio
-async def test_app_manifest_resource(mock_device_manager):
-    """Test the app_manifest resource."""
-    with patch("droidmind.resources.app_resources.get_device_manager", return_value=mock_device_manager):
-        result = await app_manifest("test_device", "com.example.app")
+async def test_get_app_manifest(mock_device_manager, mock_context):
+    """Test the get_app_manifest tool."""
+    with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
+        result = await get_app_manifest("test_device", "com.example.app", mock_context)
 
     assert "App Manifest for" in result
     mock_device_manager.get_device.assert_called_once_with("test_device")

@@ -10,6 +10,10 @@ import logging
 from droidmind.devices import get_device_manager
 from droidmind.tools.app_management import (
     clear_app_data,
+    get_app_activities,
+    get_app_info,
+    get_app_manifest,
+    get_app_permissions,
     install_app,
     list_packages,
     start_app,
@@ -67,6 +71,8 @@ __all__ = [
     "app_logs",
     # Diagnostics
     "capture_bugreport",
+    # App management
+    "clear_app_data",
     # Device management
     "connect_device",
     "create_directory",
@@ -81,6 +87,11 @@ __all__ = [
     "file_exists",
     # File operations
     "file_stats",
+    # App management
+    "get_app_activities",
+    "get_app_info",
+    "get_app_manifest",
+    "get_app_permissions",
     # Utilities
     "get_device_manager",
     # UI automation
@@ -90,6 +101,7 @@ __all__ = [
     "list_devices",
     # File operations
     "list_directory",
+    "list_packages",
     "press_key",
     "pull_file",
     "push_file",
@@ -99,8 +111,11 @@ __all__ = [
     "screenshot",
     # Shell
     "shell_command",
+    "start_app",
     "start_intent",
+    "stop_app",
     "swipe",
     "tap",
+    "uninstall_app",
     "write_file",
 ]
