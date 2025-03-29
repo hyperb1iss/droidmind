@@ -16,15 +16,14 @@ from droidmind.tools.app_management import (
     stop_app,
     uninstall_app,
 )
-from droidmind.tools.device_info import (
-    device_properties,
-)
 
 # Re-export all tool functions for backward compatibility
 from droidmind.tools.device_management import (
     connect_device,
-    devicelist,
+    device_logcat,
+    device_properties,
     disconnect_device,
+    list_devices,
     reboot_device,
 )
 from droidmind.tools.diagnostics import (
@@ -64,10 +63,8 @@ __all__ = [
     "connect_device",
     "create_directory",
     "delete_file",
-    # Device info
+    "device_logcat",
     "device_properties",
-    # Device management
-    "devicelist",
     "disconnect_device",
     "dump_heap",
     "file_exists",
@@ -79,6 +76,7 @@ __all__ = [
     "input_text",
     # App management
     "install_app",
+    "list_devices",
     # File operations
     "list_directory",
     "press_key",

@@ -9,8 +9,8 @@ from droidmind.devices import Device
 from droidmind.tools import (
     connect_device,
     device_properties,
-    devicelist as list_devices,
     disconnect_device,
+    list_devices,
     reboot_device,
     screenshot as capture_screenshot,
     shell_command,
@@ -123,7 +123,7 @@ async def test_list_devices_empty(mock_list_devices, mock_context):
 
 
 @pytest.mark.asyncio
-@patch("droidmind.tools.device_info.get_device_manager")
+@patch("droidmind.tools.device_management.get_device_manager")
 async def test_device_properties(mock_get_device_manager, mock_context, mock_device):
     """Test the device_properties tool."""
     # Setup mock get_device_manager to return a mock that has get_device method
@@ -144,7 +144,7 @@ async def test_device_properties(mock_get_device_manager, mock_context, mock_dev
 
 
 @pytest.mark.asyncio
-@patch("droidmind.tools.device_info.get_device_manager")
+@patch("droidmind.tools.device_management.get_device_manager")
 async def test_device_properties_not_found(mock_get_device_manager, mock_context):
     """Test the device_properties tool with a non-existent device."""
     # Setup mock get_device_manager to return a mock that has get_device method
