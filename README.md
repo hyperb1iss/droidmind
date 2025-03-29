@@ -73,7 +73,7 @@ droidmind --transport sse
 2. Connect your AI assistant using the MCP protocol URI:
 
    ```
-   sse://localhost:6463/sse
+   sse://localhost:4256/sse
    ```
 
 3. The AI can now control your Android devices through natural language!

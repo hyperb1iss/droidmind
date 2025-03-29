@@ -208,7 +208,7 @@ def run_stdio_server(config: dict[str, Any]) -> None:
 )
 @click.option(
     "--port",
-    default=6463,  # m.i.n.d
+    default=4256,  # h.a.l.o
     type=int,
     help="Port to listen on for network connections",
 )
@@ -306,4 +306,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main(host="127.0.0.1", port=6942, transport="sse", debug=False, log_level="INFO", adb_path="adb")
+    main(host="127.0.0.1", port=4256, transport="sse", debug=False, log_level="INFO", adb_path="adb")
