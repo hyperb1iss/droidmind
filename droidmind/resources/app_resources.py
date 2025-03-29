@@ -1,4 +1,8 @@
-"""App resources for DroidMind."""
+"""
+App resources for DroidMind.
+
+This module provides resources for interacting with apps on Android devices.
+"""
 
 from dataclasses import dataclass
 import re
@@ -295,55 +299,3 @@ async def app_manifest(serial: str, package: str) -> str:
     except Exception as e:
         logger.exception("Error retrieving app manifest: %s", e)
         return f"Error retrieving app manifest: {e!s}"
-
-
-@mcp.resource("logs://{serial}/app/{package}")
-async def app_logs(serial: str, package: str) -> str:
-    """
-    Get application-specific logs from a device.
-
-    Args:
-        serial: Device serial number
-        package: Package name to get logs for
-
-    Returns:
-        A markdown-formatted representation of the app's logs
-    """
-    try:
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            return f"Error: Device {serial} not found."
-
-        # Get userId using grep
-        cmd = f"dumpsys package {package} | grep userId="
-        result = await device.run_shell(cmd)
-
-        # Get the package's UID
-        uid_match = re.search(r"userId=(\d+)", result)
-        uid = uid_match.group(1) if uid_match else None
-
-        # Get the app's logcat
-        if uid:
-            # Filter by UID
-            cmd = f"logcat -d -v threadtime --uid {uid}"
-        else:
-            # Filter by package name
-            cmd = f"logcat -d -v threadtime | grep {package}"
-
-        result = await device.run_shell(cmd)
-
-        # Format the result
-        logs = f"# Application Logs for {package}\n\n"
-
-        if not result.strip():
-            return f"{logs}No logs found for this application."
-
-        logs += "```\n"
-        logs += result
-        logs += "\n```"
-
-        return logs
-
-    except Exception as e:
-        logger.exception("Error retrieving app logs: %s", e)
-        return f"Error retrieving app logs: {e!s}"

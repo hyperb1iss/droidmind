@@ -147,67 +147,6 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
 
 
 @mcp.tool()
-async def device_logcat(
-    serial: str, ctx: Context, lines: int = 1000, filter_expr: str = "", max_size: int | None = 100000
-) -> str:
-    """
-    Get recent logcat output from a device.
-
-    Args:
-        serial: Device serial number
-        lines: Number of recent lines to fetch (default: 1000, max recommended: 20000)
-               Higher values may impact performance and context window limits.
-        filter_expr: Optional filter expression (e.g., "ActivityManager:I *:S")
-                     Use to focus on specific tags or priority levels
-        max_size: Maximum output size in characters (default: 100000)
-                  Set to None for unlimited (not recommended)
-
-    Returns:
-        Recent logcat entries
-    """
-    device = await get_device_manager().get_device(serial)
-    if device is None:
-        return f"Error: Device {serial} not found."
-
-    try:
-        # Build logcat command
-        cmd = ["logcat", "-d", "-v", "threadtime"]
-
-        # Add line limit if specified
-        if lines > 0:
-            cmd.extend(["-t", str(lines)])
-
-        # Add filter if specified
-        if filter_expr:
-            cmd.extend(filter_expr.split())
-
-        # Join command parts
-        logcat_cmd = " ".join(cmd)
-
-        # Get logcat output
-        output = await device.run_shell(logcat_cmd)
-
-        # Truncate if needed
-        if max_size and len(output) > max_size:
-            output = output[:max_size] + "\n... [Output truncated due to size limit]"
-
-        # Format the output
-        result = ["# Device Logcat Output 📱\n"]
-        result.append(f"## Last {lines} Lines")
-        if filter_expr:
-            result.append(f"\nFilter: `{filter_expr}`")
-        result.append("\n```log")
-        result.append(output)
-        result.append("```")
-
-        return "\n".join(result)
-
-    except Exception as e:
-        logger.exception("Error getting logcat output")
-        return f"Error retrieving logcat output: {e!s}"
-
-
-@mcp.tool()
 async def device_properties(serial: str, ctx: Context) -> str:
     """
     Get detailed properties of a specific device.

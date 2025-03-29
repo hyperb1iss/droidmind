@@ -1,16 +1,16 @@
-"""Tests for the log resources in the DroidMind MCP server."""
+"""Tests for the log tools in the DroidMind MCP server."""
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from droidmind.devices import Device, DeviceManager
-from droidmind.resources.logs import device_anr_logs, device_battery_stats, device_crash_logs
+from droidmind.tools.logs import device_anr_logs, device_battery_stats, device_crash_logs
 
 
 @pytest.mark.asyncio
-class TestANRResource:
-    """Tests for the logs://{serial}/anr resource."""
+class TestANRLogs:
+    """Tests for the device_anr_logs tool."""
 
     @pytest.fixture
     def mock_device(self):
@@ -42,12 +42,19 @@ class TestANRResource:
         mock_dm.get_device.return_value = mock_device
         return mock_dm
 
-    async def test_anr_logs_basic(self, mock_device, mock_device_manager):
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock Context."""
+        context = AsyncMock()
+        context.info = AsyncMock()
+        return context
+
+    async def test_anr_logs_basic(self, mock_device, mock_device_manager, mock_context):
         """Test basic ANR logs functionality."""
         # Patch the device manager to return our mock
-        with patch("droidmind.resources.logs.get_device_manager", return_value=mock_device_manager):
-            # Call the resource
-            result = await device_anr_logs("test_device")
+        with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
+            # Call the tool
+            result = await device_anr_logs("test_device", mock_context)
 
             # Verify results
             assert "# Application Not Responding (ANR) Traces" in result
@@ -56,8 +63,8 @@ class TestANRResource:
 
 
 @pytest.mark.asyncio
-class TestCrashLogsResource:
-    """Tests for the logs://{serial}/crashes resource."""
+class TestCrashLogs:
+    """Tests for the device_crash_logs tool."""
 
     @pytest.fixture
     def mock_device(self):
@@ -75,7 +82,7 @@ class TestCrashLogsResource:
             "ls -la /data/system/dropbox | grep crash": "-rw-r--r-- root root 12345 2023-01-01 12:00 crash_01.txt",
             "cat /data/system/dropbox/crash_01.txt": "Sample crash report content",
             # Logcat crash buffer
-            "logcat -d -b crash -v threadtime -t 100": "Sample crash log from logcat buffer",
+            "logcat -d -v threadtime -b crash -t 100": "Sample crash log from logcat buffer",
         }[cmd]
         return mock_device
 
@@ -86,12 +93,19 @@ class TestCrashLogsResource:
         mock_dm.get_device.return_value = mock_device
         return mock_dm
 
-    async def test_crash_logs_basic(self, mock_device, mock_device_manager):
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock Context."""
+        context = AsyncMock()
+        context.info = AsyncMock()
+        return context
+
+    async def test_crash_logs_basic(self, mock_device, mock_device_manager, mock_context):
         """Test basic crash logs functionality."""
         # Patch the device manager to return our mock
-        with patch("droidmind.resources.logs.get_device_manager", return_value=mock_device_manager):
-            # Call the resource
-            result = await device_crash_logs("test_device")
+        with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
+            # Call the tool
+            result = await device_crash_logs("test_device", mock_context)
 
             # Verify results
             assert "# Android Application Crash Reports" in result
@@ -104,8 +118,8 @@ class TestCrashLogsResource:
 
 
 @pytest.mark.asyncio
-class TestBatteryStatsResource:
-    """Tests for the logs://{serial}/battery resource."""
+class TestBatteryStats:
+    """Tests for the device_battery_stats tool."""
 
     @pytest.fixture
     def mock_device(self):
@@ -154,12 +168,19 @@ Statistics since last charge:
         mock_dm.get_device.return_value = mock_device
         return mock_dm
 
-    async def test_battery_stats_basic(self, mock_device, mock_device_manager):
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock Context."""
+        context = AsyncMock()
+        context.info = AsyncMock()
+        return context
+
+    async def test_battery_stats_basic(self, mock_device, mock_device_manager, mock_context):
         """Test basic battery stats functionality."""
         # Patch the device manager to return our mock
-        with patch("droidmind.resources.logs.get_device_manager", return_value=mock_device_manager):
-            # Call the resource
-            result = await device_battery_stats("test_device")
+        with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
+            # Call the tool
+            result = await device_battery_stats("test_device", mock_context)
 
             # Verify results
             assert "# Battery Statistics Report 🔋" in result

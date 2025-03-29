@@ -1,18 +1,128 @@
-"""Log resources for DroidMind."""
+"""
+Log Tools - MCP tools for retrieving logs from Android devices.
+
+This module provides tools for collecting and analyzing various types of logs
+from Android devices, including logcat, ANR traces, crash reports, and battery stats.
+"""
 
 import os
 import re
+
+from mcp.server.fastmcp import Context
 
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
 from droidmind.log import logger
 
-# Re-export get_device_manager for test patching
-__all__ = ["get_device_manager"]
+
+async def _get_filtered_logcat(
+    device,
+    filter_expr: str,
+    lines: int = 1000,
+    buffer: str = "main",
+    format_type: str = "threadtime",
+    max_size: int | None = 100000,
+) -> str:
+    """
+    Helper function to get filtered logcat output in a consistent format.
+
+    Args:
+        device: Device instance
+        filter_expr: Optional filter expression for logcat
+        lines: Number of recent lines to fetch
+        buffer: Logcat buffer to use (main, system, crash, etc.)
+        format_type: Format for logcat output
+        max_size: Maximum output size in characters
+
+    Returns:
+        Formatted logcat output
+    """
+    try:
+        # Build logcat command
+        cmd = ["logcat", "-d", "-v", format_type]
+
+        # Specify buffer if not main
+        if buffer != "main":
+            cmd.extend(["-b", buffer])
+
+        # Add line limit if specified
+        if lines > 0:
+            cmd.extend(["-t", str(lines)])
+
+        # Add filter if specified
+        if filter_expr:
+            cmd.extend(filter_expr.split())
+
+        # Join command parts
+        logcat_cmd = " ".join(cmd)
+
+        # Get logcat output
+        output = await device.run_shell(logcat_cmd)
+
+        # Truncate if needed
+        if max_size and len(output) > max_size:
+            output = output[:max_size] + "\n... [Output truncated due to size limit]"
+
+        return output
+    except Exception as e:
+        logger.exception("Error getting logcat output")
+        return f"Error retrieving logcat output: {e!s}"
 
 
-@mcp.resource("logs://{serial}/anr")
-async def device_anr_logs(serial: str) -> str:
+@mcp.tool()
+async def device_logcat(
+    serial: str,
+    ctx: Context,
+    lines: int = 1000,
+    filter_expr: str = "",
+    buffer: str = "main",
+    format_type: str = "threadtime",
+    max_size: int | None = 100000,
+) -> str:
+    """
+    Get logcat output from a device with flexible filtering options.
+
+    Args:
+        serial: Device serial number
+        lines: Number of recent lines to fetch (default: 1000)
+               Higher values may impact performance and context window limits.
+        filter_expr: Optional filter expression (e.g., "ActivityManager:I *:S")
+                     Use to focus on specific tags or priority levels
+        buffer: Logcat buffer to use (main, system, crash, radio, events, etc.)
+        format_type: Format for logcat output (threadtime, brief, tag, process, etc.)
+        max_size: Maximum output size in characters (default: 100000)
+                  Set to None for unlimited (not recommended)
+
+    Returns:
+        Recent logcat entries in markdown format
+    """
+    device = await get_device_manager().get_device(serial)
+    if device is None:
+        return f"Error: Device {serial} not found."
+
+    await ctx.info(f"Retrieving logcat from device {serial} (buffer: {buffer})...")
+
+    try:
+        output = await _get_filtered_logcat(device, filter_expr, lines, buffer, format_type, max_size)
+
+        # Format the output
+        result = ["# Device Logcat Output 📱\n"]
+        result.append(f"## Last {lines} Lines from '{buffer}' Buffer")
+        if filter_expr:
+            result.append(f"\nFilter: `{filter_expr}`")
+        result.append("\n```log")
+        result.append(output)
+        result.append("```")
+
+        return "\n".join(result)
+
+    except Exception as e:
+        logger.exception("Error getting logcat output")
+        return f"Error retrieving logcat output: {e!s}"
+
+
+@mcp.tool()
+async def device_anr_logs(serial: str, ctx: Context) -> str:
     """
     Get Application Not Responding (ANR) traces from a device.
 
@@ -25,6 +135,8 @@ async def device_anr_logs(serial: str) -> str:
     device = await get_device_manager().get_device(serial)
     if device is None:
         return f"Error: Device {serial} not found."
+
+    await ctx.info(f"Retrieving ANR traces from device {serial}...")
 
     try:
         # Check if ANR directory exists
@@ -80,8 +192,8 @@ async def device_anr_logs(serial: str) -> str:
         return f"Error retrieving ANR traces: {e!s}"
 
 
-@mcp.resource("logs://{serial}/crashes")
-async def device_crash_logs(serial: str) -> str:
+@mcp.tool()
+async def device_crash_logs(serial: str, ctx: Context) -> str:
     """
     Get application crash logs from a device.
 
@@ -94,6 +206,8 @@ async def device_crash_logs(serial: str) -> str:
     device = await get_device_manager().get_device(serial)
     if device is None:
         return f"Error: Device {serial} not found."
+
+    await ctx.info(f"Retrieving crash logs from device {serial}...")
 
     try:
         # First check the tombstone directory
@@ -164,7 +278,7 @@ async def device_crash_logs(serial: str) -> str:
 
         # Add logcat crashes too
         output.append("## Recent Crashes in Logcat\n")
-        crash_logs = await device.run_shell("logcat -d -b crash -v threadtime -t 100")
+        crash_logs = await _get_filtered_logcat(device, "", 100, "crash", "threadtime")
 
         if not crash_logs.strip():
             output.append("No crash logs found in the crash buffer.\n")
@@ -177,8 +291,8 @@ async def device_crash_logs(serial: str) -> str:
         return f"Error retrieving crash logs: {e!s}"
 
 
-@mcp.resource("logs://{serial}/battery")
-async def device_battery_stats(serial: str) -> str:
+@mcp.tool()
+async def device_battery_stats(serial: str, ctx: Context) -> str:
     """
     Get battery statistics and history from a device.
 
@@ -191,6 +305,8 @@ async def device_battery_stats(serial: str) -> str:
     device = await get_device_manager().get_device(serial)
     if device is None:
         return f"Error: Device {serial} not found."
+
+    await ctx.info(f"Retrieving battery statistics from device {serial}...")
 
     try:
         output = []
@@ -268,3 +384,74 @@ async def device_battery_stats(serial: str) -> str:
     except Exception as e:
         logger.exception("Error getting battery stats")
         return f"Error retrieving battery statistics: {e!s}"
+
+
+@mcp.tool()
+async def app_logs(serial: str, package: str, ctx: Context, lines: int = 1000) -> str:
+    """
+    Get logs for a specific app from logcat.
+
+    Args:
+        serial: Device serial number
+        package: Package name of the app to get logs for
+        lines: Number of lines to fetch (default: 1000)
+
+    Returns:
+        App logs in markdown format
+    """
+    device = await get_device_manager().get_device(serial)
+    if device is None:
+        return f"Error: Device {serial} not found."
+
+    await ctx.info(f"Retrieving logs for app {package} from device {serial}...")
+
+    try:
+        # Use pid filter for more targeted results
+        process_info = await device.run_shell(f"ps -A | grep {package}")
+
+        filter_expr = ""
+        if process_info:
+            # Try to extract PID for more precise filtering
+            process_lines = process_info.strip().split("\n")
+            for line in process_lines:
+                parts = line.split()
+                if len(parts) >= 2 and package in line:
+                    pid = parts[1]  # PID is typically the second column
+                    filter_expr = f"--pid={pid}"
+                    break
+
+        # If we couldn't get the PID, fallback to grep
+        output = ""
+        if filter_expr:
+            # If we have a PID, use direct filtering
+            output = await _get_filtered_logcat(device, filter_expr, lines)
+        else:
+            # Otherwise, get more lines and grep for the package
+            raw_logs = await _get_filtered_logcat(device, "", lines * 2)  # Get more lines to account for filtering
+            # Extract relevant logs with grep-like filtering
+            log_lines = raw_logs.split("\n")
+            filtered_lines = [line for line in log_lines if package in line]
+            output = "\n".join(filtered_lines[-lines:])  # Take the most recent matching lines
+
+        if not output.strip():
+            # Try a broader search if no logs were found
+            raw_logs = await _get_filtered_logcat(device, "", lines * 2)
+            simplified_package = package.split(".")[-1]  # Get last part of package name
+            log_lines = raw_logs.split("\n")
+            filtered_lines = [line for line in log_lines if simplified_package in line]
+            output = "\n".join(filtered_lines[-lines:])  # Take the most recent matching lines
+
+        result = [f"# Logs for App '{package}' 📱\n"]
+        if not output.strip():
+            result.append(f"No logs found for package {package}. The app may not be running or not generating logs.")
+        else:
+            result.append("## Recent Log Entries\n")
+            result.append("```log")
+            result.append(output)
+            result.append("```")
+
+        return "\n".join(result)
+
+    except Exception as e:
+        logger.exception(f"Error getting logs for app {package}")
+        return f"Error retrieving app logs: {e!s}"

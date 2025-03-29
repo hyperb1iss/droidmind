@@ -20,7 +20,6 @@ from droidmind.tools.app_management import (
 # Re-export all tool functions for backward compatibility
 from droidmind.tools.device_management import (
     connect_device,
-    device_logcat,
     device_properties,
     disconnect_device,
     list_devices,
@@ -41,6 +40,13 @@ from droidmind.tools.file_operations import (
     read_file,
     write_file,
 )
+from droidmind.tools.logs import (
+    app_logs,
+    device_anr_logs,
+    device_battery_stats,
+    device_crash_logs,
+    device_logcat,
+)
 from droidmind.tools.media import (
     screenshot,
 )
@@ -57,12 +63,17 @@ from droidmind.tools.ui import (
 
 # Re-export get_device_manager for backward compatibility
 __all__ = [
+    # App logs and diagnostics
+    "app_logs",
     # Diagnostics
     "capture_bugreport",
     # Device management
     "connect_device",
     "create_directory",
     "delete_file",
+    "device_anr_logs",
+    "device_battery_stats",
+    "device_crash_logs",
     "device_logcat",
     "device_properties",
     "disconnect_device",

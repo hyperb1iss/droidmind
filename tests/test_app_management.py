@@ -5,10 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from droidmind.devices import Device, DeviceManager
-from droidmind.resources.app_resources import (
-    app_logs,
-    app_manifest,
-)
+from droidmind.resources.app_resources import app_manifest
 from droidmind.tools.app_management import (
     clear_app_data,
     list_packages,
@@ -16,6 +13,7 @@ from droidmind.tools.app_management import (
     stop_app,
     uninstall_app,
 )
+from droidmind.tools.logs import app_logs
 
 
 @pytest.fixture
@@ -50,6 +48,8 @@ def mock_device():
             return '<map><string name="key">value</string></map>'
         if "logcat" in cmd:
             return "01-01 12:00:00.000 1234 5678 I App: This is a log message"
+        if "ps -A | grep" in cmd:
+            return "u0_a123    1234  123 1234567 123456 0 0 S com.example.app"
         if "which su" in cmd:
             return "/system/bin/su"
         if "su -c" in cmd:
@@ -158,13 +158,13 @@ async def test_app_manifest_resource(mock_device_manager):
 
 
 @pytest.mark.asyncio
-async def test_app_logs_resource(mock_device_manager):
-    """Test the app_logs resource."""
-    with patch("droidmind.resources.app_resources.get_device_manager", return_value=mock_device_manager):
-        result = await app_logs("test_device", "com.example.app")
+async def test_app_logs_tool(mock_device_manager, mock_context):
+    """Test the app_logs tool."""
+    with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
+        result = await app_logs("test_device", "com.example.app", mock_context)
 
-    assert "Application Logs for" in result
+    assert "Logs for App" in result
     assert "This is a log message" in result
     mock_device_manager.get_device.assert_called_once_with("test_device")
     mock_device = mock_device_manager.get_device.return_value
-    mock_device.run_shell.assert_any_call("dumpsys package com.example.app | grep userId=")
+    mock_device.run_shell.assert_any_call("ps -A | grep com.example.app")
