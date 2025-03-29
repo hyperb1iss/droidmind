@@ -7,8 +7,11 @@ This module provides a wrapper around the system's ADB binary to interact with A
 import asyncio
 from contextlib import AsyncExitStack
 import os
+import random
 import re
 import shlex
+import string
+import time
 
 from droidmind.log import logger
 from droidmind.packages import parse_package_list
@@ -622,8 +625,10 @@ class ADBWrapper:
             timestamp = asyncio.get_event_loop().time()
             local_path = f"screenshot_{serial.replace(':', '_')}_{int(timestamp)}.png"
 
-        # Temp path on device
-        device_path = "/sdcard/screenshot.png"
+        # Temp path on device - use /sdcard for better compatibility
+        timestamp = int(time.time())
+        random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))  # noqa: S311
+        device_path = f"/sdcard/screenshot_{timestamp}_{random_suffix}.png"
 
         try:
             # Take screenshot using screencap command

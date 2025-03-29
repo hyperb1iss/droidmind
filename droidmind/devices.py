@@ -11,11 +11,8 @@ through ADB. It defines two primary classes:
 
 import contextlib
 import os
-import random
 import re
-import string
 import tempfile
-import time
 from urllib.parse import unquote
 
 import aiofiles
@@ -314,29 +311,18 @@ class Device:
             screenshot_path = temp.name
 
         try:
-            # Generate a unique filename with timestamp and random component
-            timestamp = int(time.time())
-            random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))  # noqa: S311
-            device_filename = f"/.screenshot_{timestamp}_{random_suffix}.png"
-
-            # Take screenshot on device and save to a hidden file
-            await self._adb.shell(self._serial, f"screencap -p {device_filename}")
-
-            # Pull the file from the device
-            await self._adb.pull_file(self._serial, device_filename, screenshot_path)
-
-            # Clean up the file on the device
-            await self._adb.shell(self._serial, f"rm {device_filename}")
+            # Use the ADB wrapper to take a screenshot
+            local_path = await self._adb.capture_screenshot(self._serial, screenshot_path)
 
             # Read the screenshot file
-            async with aiofiles.open(screenshot_path, "rb") as f:
+            async with aiofiles.open(local_path, "rb") as f:
                 screenshot_data = await f.read()
 
             # Clean up the temporary file
             try:
-                os.unlink(screenshot_path)
+                os.unlink(local_path)
             except OSError:
-                logger.warning("Failed to remove temporary screenshot file: %s", screenshot_path)
+                logger.warning("Failed to remove temporary screenshot file: %s", local_path)
 
             return screenshot_data
 
