@@ -287,9 +287,7 @@ async def dump_heap(
         dump_type = "native" if native else "java"
 
         # Generate paths for the heap dump
-        device_dump_path, output_path = await _generate_heap_dump_paths(
-            device, app_name, dump_type, output_path, ctx
-        )
+        device_dump_path, output_path = await _generate_heap_dump_paths(device, app_name, dump_type, output_path, ctx)
 
         # Inform the user
         await ctx.info(f"📊 Capturing {dump_type} heap dump for process {pid}...")

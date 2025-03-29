@@ -173,11 +173,18 @@ def run_sse_server(config: dict[str, Any]) -> None:
         logger.exception("Server encountered exception during shutdown: %s", e)
 
 
-def run_stdio_server() -> None:
-    """Run the server with stdio transport."""
+def run_stdio_server(config: dict[str, Any]) -> None:
+    """Run the server with stdio transport.
+
+    Args:
+        config: Server configuration
+    """
     # Use stdio transport for terminal use
     logger.info("Using stdio transport for terminal interaction")
     from mcp.server.stdio import stdio_server
+
+    # Determine if we should show startup message (only if log_file is specified)
+    bool(config.get("log_file") and config["log_file"] != "console")
 
     async def arun() -> None:
         async with stdio_server() as streams:
@@ -219,12 +226,21 @@ def run_stdio_server() -> None:
     help="Set the logging level",
 )
 @click.option(
+    "--log-file",
+    "-l",
+    type=str,
+    default=None,
+    help="Path to log file (if not specified, logs go to console in SSE mode or nowhere in stdio mode)",
+)
+@click.option(
     "--adb-path",
     type=str,
     default=None,
     help="Path to the ADB binary (uses auto-detection if not specified)",
 )
-def main(host: str, port: int, transport: str, debug: bool, log_level: str, adb_path: str | None) -> None:
+def main(
+    host: str, port: int, transport: str, debug: bool, log_level: str, log_file: str | None, adb_path: str | None
+) -> None:
     """
     DroidMind MCP Server - Control Android devices with AI assistants.
 
@@ -234,8 +250,9 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str, adb_
     # Set up global exception handler
     setup_global_exception_handler()
 
-    # Start visual elements before configuring logging
-    console.print_banner()
+    # Start visual elements before configuring logging - ONLY for SSE mode
+    if transport == "sse":
+        console.print_banner()
 
     # Prepare server configuration info
     config: dict[str, Any] = {
@@ -245,6 +262,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str, adb_
         "debug": debug,
         "log_level": log_level if not debug else "DEBUG",
         "adb_path": adb_path or "auto-detected",
+        "log_file": log_file or "console",
     }
 
     # Validate host before showing config
@@ -255,12 +273,23 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str, adb_
             config["host"] = "127.0.0.1"
             config["host_note"] = f"(Changed from {host} - invalid address)"
 
-    # Display beautiful configuration with NeonGlam aesthetic
-    console.display_system_info(config)
+    # Configure logging differently based on transport and log_file
+    if transport == "stdio":
+        # In stdio mode we don't use Rich console logging unless log_file is specified
+        # Also disable all console logging if no log file is specified
+        disable_console_logging = not log_file
+        setup_logging(
+            config["log_level"], debug, handler=None, log_file=log_file, disable_console_logging=disable_console_logging
+        )
+    else:
+        # In SSE mode we use Rich console logging + optional file logging
+        handler = RichHandler(console=console.console, rich_tracebacks=True)
+        setup_logging(config["log_level"], debug, handler=handler, log_file=log_file, disable_console_logging=False)
 
-    # Configure logging using Rich
-    handler = RichHandler(console=console.console, rich_tracebacks=True)
-    setup_logging(config["log_level"], debug, handler)
+    # Display beautiful configuration with NeonGlam aesthetic
+    # Only in SSE mode
+    if transport == "sse":
+        console.display_system_info(config)
 
     # Set up asyncio exception handler
     setup_asyncio_exception_handler()
@@ -273,7 +302,7 @@ def main(host: str, port: int, transport: str, debug: bool, log_level: str, adb_
     if transport == "sse":
         run_sse_server(config)
     else:
-        run_stdio_server()
+        run_stdio_server(config)
 
 
 if __name__ == "__main__":

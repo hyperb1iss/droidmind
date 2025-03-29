@@ -4,9 +4,7 @@ Console utilities for DroidMind using the rich library for beautiful terminal ou
 
 from typing import Any
 
-from rich.box import ROUNDED
 from rich.console import Console
-from rich.panel import Panel
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -152,10 +150,11 @@ def display_system_info(config: dict[str, Any]) -> None:
 
 
 def startup_complete() -> None:
-    """Print a visual indicator that startup is complete."""
-    msg = Text("✧ NEURAL INTERFACE ACTIVATED ✧", style=f"bold {COLORS['mint_green']}")
-    console.print(Panel(msg, box=ROUNDED, border_style=styles["panel_border"], padding=(0, 2), expand=False))
-    console.print()
+    """Signal that startup is complete.
+
+    This function is called when the server startup is complete.
+    """
+    # Intentionally left empty
 
 
 def header(message: str) -> None:
