@@ -16,35 +16,44 @@ The App Management module in DroidMind provides comprehensive tools and resource
 
 ### Installation and Removal
 
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `install_app` | Install an APK on the device | `serial`, `apk_path`, `reinstall` (optional), `grant_permissions` (optional) |
-| `uninstall_app` | Remove an app from the device | `serial`, `package`, `keep_data` (optional) |
+| Tool            | Description                   | Parameters                                                                   |
+| --------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| `install_app`   | Install an APK on the device  | `serial`, `apk_path`, `reinstall` (optional), `grant_permissions` (optional) |
+| `uninstall_app` | Remove an app from the device | `serial`, `package`, `keep_data` (optional)                                  |
 
 ### App Lifecycle
 
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `start_app` | Launch an app | `serial`, `package`, `activity` (optional) |
-| `stop_app` | Force stop an app | `serial`, `package` |
-| `clear_app_data` | Clear app data and cache | `serial`, `package` |
+| Tool             | Description              | Parameters                                 |
+| ---------------- | ------------------------ | ------------------------------------------ |
+| `start_app`      | Launch an app            | `serial`, `package`, `activity` (optional) |
+| `stop_app`       | Force stop an app        | `serial`, `package`                        |
+| `clear_app_data` | Clear app data and cache | `serial`, `package`                        |
 
 ### App Discovery
 
-| Tool | Description | Parameters |
-|------|-------------|------------|
+| Tool            | Description             | Parameters                                 |
+| --------------- | ----------------------- | ------------------------------------------ |
 | `list_packages` | List installed packages | `serial`, `include_system_apps` (optional) |
+
+### App Information
+
+| Tool                  | Description                           | Parameters          |
+| --------------------- | ------------------------------------- | ------------------- |
+| `get_app_manifest`    | Get AndroidManifest.xml contents      | `serial`, `package` |
+| `get_app_permissions` | Get permissions requested by an app   | `serial`, `package` |
+| `get_app_activities`  | Get activities defined in an app      | `serial`, `package` |
+| `get_app_info`        | Get detailed information about an app | `serial`, `package` |
 
 ## 📁 MCP Resources
 
 ### App Information
 
-| Resource | Description | Example Use |
-|----------|-------------|-------------|
-| `fs://{serial}/app/{package}/manifest` | App manifest | "Show me the permissions my app is requesting" |
-| `fs://{serial}/app/{package}/data` | App data directory listing | "What files has my app created?" |
-| `fs://{serial}/app/{package}/shared_prefs` | App preferences | "Show me the saved preferences in my app" |
-| `logs://{serial}/app/{package}` | App-specific logs | "What errors is my app generating?" |
+| Resource                                   | Description                | Example Use                                    |
+| ------------------------------------------ | -------------------------- | ---------------------------------------------- |
+| `fs://{serial}/app/{package}/manifest`     | App manifest               | "Show me the permissions my app is requesting" |
+| `fs://{serial}/app/{package}/data`         | App data directory listing | "What files has my app created?"               |
+| `fs://{serial}/app/{package}/shared_prefs` | App preferences            | "Show me the saved preferences in my app"      |
+| `logs://{serial}/app/{package}`            | App-specific logs          | "What errors is my app generating?"            |
 
 ## 💎 Usage Examples
 
@@ -76,10 +85,16 @@ await clear_app_data(serial="emulator-5554", package="com.example.app")
 
 ```python
 # Get app manifest
-manifest = await app_manifest(serial="emulator-5554", package="com.example.app")
+manifest = await get_app_manifest(serial="emulator-5554", package="com.example.app")
 
-# Get app shared preferences
-prefs = await app_shared_prefs(serial="emulator-5554", package="com.example.app")
+# Get app permissions
+permissions = await get_app_permissions(serial="emulator-5554", package="com.example.app")
+
+# Get app activities
+activities = await get_app_activities(serial="emulator-5554", package="com.example.app")
+
+# Get app info
+info = await get_app_info(serial="emulator-5554", package="com.example.app")
 
 # Get app-specific logs
 logs = await app_logs(serial="emulator-5554", package="com.example.app")
@@ -113,6 +128,8 @@ When working with app management, try these prompts with your AI assistant:
 - "Show me all the permissions that TikTok is requesting"
 - "What shared preferences has my game saved?"
 - "Show me recent crash logs for my app"
+- "What activities are available in the Settings app?"
+- "Give me detailed information about YouTube app"
 
 ## 🔄 Future Enhancements
 
@@ -121,4 +138,4 @@ When working with app management, try these prompts with your AI assistant:
 - Runtime permission management
 - App usage statistics
 - App network traffic monitoring
-- Storage usage analysis 
+- Storage usage analysis

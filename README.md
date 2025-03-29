@@ -25,7 +25,6 @@ DroidMind is a powerful bridge between AI assistants and Android devices, enabli
 - 👆 **UI Automation** - Interact with the device through taps, swipes, text input, and key presses
 - 🔍 **App Inspection** - View app manifests, shared preferences, and app-specific logs
 - 🔒 **Security Framework** - Protect devices with comprehensive command validation
-- 🌈 **NeonGlam Console** - Enjoy an aesthetic terminal experience with cyberpunk vibes
 - 💬 **MCP Integration** - Seamless connection to Claude, Cursor, Cline, and more
 
 ## 🚀 Installation
@@ -111,6 +110,10 @@ droidmind --transport sse
 - `stop_app` - Force stop an app on the device
 - `clear_app_data` - Clear app data and cache
 - `list_packages` - List installed packages on the device
+- `get_app_manifest` - Get AndroidManifest.xml contents for an app
+- `get_app_permissions` - Get permissions requested by an app
+- `get_app_activities` - Get activities defined in an app
+- `get_app_info` - Get detailed information about an app
 - `reboot_device` - Reboot the device (normal, recovery, or bootloader)
 - `screenshot` - Get a screenshot from a device
 - `capture_bugreport` - Generate a comprehensive bug report from the device
@@ -165,23 +168,6 @@ DroidMind includes a comprehensive security framework to protect your devices wh
 - **ADB Command Security**: Special handling for ADB-specific commands with proper async validation
 
 The security system is designed to be permissive enough to allow common operations while preventing destructive actions. High-risk commands will display warnings to users before execution, and critical operations are blocked entirely without explicit override.
-
-## 🚧 Development Status
-
-DroidMind is in active development with approximately 90% of planned features implemented. See the [Development Roadmap](docs/plan.md) for details on current progress and upcoming features.
-
-### Current Focus Areas:
-
-1. ~~**UI Automation Development** - Adding touch, text input, and intent capabilities~~ ✅ Completed!
-2. ~~**Security Framework** - Adding command validation and safety features~~ ✅ Completed!
-3. ~~**App Management** - Completing app lifecycle and data management tools~~ ✅ Completed!
-4. ~~**File System Enhancements** - Robust file operations and metadata handling~~ ✅ Completed!
-5. **Diagnostic Tools** - Adding advanced diagnostics ✅ Major progress!
-   - ~~Screenshot tool~~ ✅ Completed
-   - ~~Bug report generation~~ ✅ Completed
-   - ~~Heap dump analysis~~ ✅ Completed
-   - Screen recording 🔄 Pending
-6. **Documentation Enhancement** - Comprehensive API docs and tutorials 🔄 In Progress
 
 ## 💻 Development
 
