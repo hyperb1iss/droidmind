@@ -17,16 +17,16 @@ classifiers = [
 # Dependencies organized by category
 dependencies = [
     # Core MCP protocol
-    "mcp[cli]>=1.3.0",
+    "mcp[cli]>=1.6.0",
     # UI and display
-    "rich>=13.9.4",
+    "rich>=14.0.0",
     # Networking and HTTP
     "httpx>=0.28.1",
     # Server components
     "sse-starlette>=2.2.1",
-    "starlette>=0.46.0",
+    "starlette>=0.46.1",
     "uvicorn>=0.34.0",
-    "rich-gradient>=0.1.7",
+    "rich-gradient>=0.2.0",
     # Async file operations
     "aiofiles>=23.2.1",
     "pillow>=11.1.0",
@@ -35,14 +35,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     # Testing
-    "pytest>=8.3.4",
-    "pytest-asyncio>=0.25.3",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
     "pytest-cov>=6.0.0",
     # Linting and type checking
     "mypy>=1.0.0",
-    "pylint>=3.0.0",
-    "ruff>=0.1.0",
-    "types-aiofiles>=24.1.0.20241221",
+    "pylint>=3.3.6",
+    "ruff>=0.11.2",
+    "types-aiofiles>=24.1.0.20250326",
 ]
 sse = ["uvicorn>=0.27.0", "starlette>=0.46.0"]
 
