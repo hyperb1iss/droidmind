@@ -140,14 +140,237 @@ Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
 ========================================
 
 ========================================
+File: "src/mcp/client/stdio/__init__.py"
+Size: 6399 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
+========================================
+import os
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Literal, TextIO
+
+import anyio
+import anyio.lowlevel
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from anyio.streams.text import TextReceiveStream
+from pydantic import BaseModel, Field
+
+import mcp.types as types
+
+from .win32 import (
+    create_windows_process,
+    get_windows_executable_command,
+    terminate_windows_process,
+)
+
+# Environment variables to inherit by default
+DEFAULT_INHERITED_ENV_VARS = (
+    [
+        "APPDATA",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LOCALAPPDATA",
+        "PATH",
+        "PROCESSOR_ARCHITECTURE",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "USERNAME",
+        "USERPROFILE",
+    ]
+    if sys.platform == "win32"
+    else ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"]
+)
+
+
+def get_default_environment() -> dict[str, str]:
+    """
+    Returns a default environment object including only environment variables deemed
+    safe to inherit.
+    """
+    env: dict[str, str] = {}
+
+    for key in DEFAULT_INHERITED_ENV_VARS:
+        value = os.environ.get(key)
+        if value is None:
+            continue
+
+        if value.startswith("()"):
+            # Skip functions, which are a security risk
+            continue
+
+        env[key] = value
+
+    return env
+
+
+class StdioServerParameters(BaseModel):
+    command: str
+    """The executable to run to start the server."""
+
+    args: list[str] = Field(default_factory=list)
+    """Command line arguments to pass to the executable."""
+
+    env: dict[str, str] | None = None
+    """
+    The environment to use when spawning the process.
+
+    If not specified, the result of get_default_environment() will be used.
+    """
+
+    cwd: str | Path | None = None
+    """The working directory to use when spawning the process."""
+
+    encoding: str = "utf-8"
+    """
+    The text encoding used when sending/receiving messages to the server
+
+    defaults to utf-8
+    """
+
+    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict"
+    """
+    The text encoding error handler.
+
+    See https://docs.python.org/3/library/codecs.html#codec-base-classes for
+    explanations of possible values
+    """
+
+
+@asynccontextmanager
+async def stdio_client(server: StdioServerParameters, errlog: TextIO = sys.stderr):
+    """
+    Client transport for stdio: this will connect to a server by spawning a
+    process and communicating with it over stdin/stdout.
+    """
+    read_stream: MemoryObjectReceiveStream[types.JSONRPCMessage | Exception]
+    read_stream_writer: MemoryObjectSendStream[types.JSONRPCMessage | Exception]
+
+    write_stream: MemoryObjectSendStream[types.JSONRPCMessage]
+    write_stream_reader: MemoryObjectReceiveStream[types.JSONRPCMessage]
+
+    read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
+    write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
+
+    command = _get_executable_command(server.command)
+
+    # Open process with stderr piped for capture
+    process = await _create_platform_compatible_process(
+        command=command,
+        args=server.args,
+        env=(
+            {**get_default_environment(), **server.env}
+            if server.env is not None
+            else get_default_environment()
+        ),
+        errlog=errlog,
+        cwd=server.cwd,
+    )
+
+    async def stdout_reader():
+        assert process.stdout, "Opened process is missing stdout"
+
+        try:
+            async with read_stream_writer:
+                buffer = ""
+                async for chunk in TextReceiveStream(
+                    process.stdout,
+                    encoding=server.encoding,
+                    errors=server.encoding_error_handler,
+                ):
+                    lines = (buffer + chunk).split("\n")
+                    buffer = lines.pop()
+
+                    for line in lines:
+                        try:
+                            message = types.JSONRPCMessage.model_validate_json(line)
+                        except Exception as exc:
+                            await read_stream_writer.send(exc)
+                            continue
+
+                        await read_stream_writer.send(message)
+        except anyio.ClosedResourceError:
+            await anyio.lowlevel.checkpoint()
+
+    async def stdin_writer():
+        assert process.stdin, "Opened process is missing stdin"
+
+        try:
+            async with write_stream_reader:
+                async for message in write_stream_reader:
+                    json = message.model_dump_json(by_alias=True, exclude_none=True)
+                    await process.stdin.send(
+                        (json + "\n").encode(
+                            encoding=server.encoding,
+                            errors=server.encoding_error_handler,
+                        )
+                    )
+        except anyio.ClosedResourceError:
+            await anyio.lowlevel.checkpoint()
+
+    async with (
+        anyio.create_task_group() as tg,
+        process,
+    ):
+        tg.start_soon(stdout_reader)
+        tg.start_soon(stdin_writer)
+        try:
+            yield read_stream, write_stream
+        finally:
+            # Clean up process to prevent any dangling orphaned processes
+            if sys.platform == "win32":
+                await terminate_windows_process(process)
+            else:
+                process.terminate()
+
+
+def _get_executable_command(command: str) -> str:
+    """
+    Get the correct executable command normalized for the current platform.
+
+    Args:
+        command: Base command (e.g., 'uvx', 'npx')
+
+    Returns:
+        str: Platform-appropriate command
+    """
+    if sys.platform == "win32":
+        return get_windows_executable_command(command)
+    else:
+        return command
+
+
+async def _create_platform_compatible_process(
+    command: str,
+    args: list[str],
+    env: dict[str, str] | None = None,
+    errlog: TextIO = sys.stderr,
+    cwd: Path | str | None = None,
+):
+    """
+    Creates a subprocess in a platform-compatible way.
+    Returns a process handle.
+    """
+    if sys.platform == "win32":
+        process = await create_windows_process(command, args, env, errlog, cwd)
+    else:
+        process = await anyio.open_process(
+            [command, *args], env=env, stderr=errlog, cwd=cwd
+        )
+
+    return process
+
+========================================
 File: "src/mcp/server/__init__.py"
-Size: 135 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 202 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 from .fastmcp import FastMCP
 from .lowlevel import NotificationOptions, Server
+from .models import InitializationOptions
 
-__all__ = ["Server", "FastMCP", "NotificationOptions"]
+__all__ = ["Server", "FastMCP", "NotificationOptions", "InitializationOptions"]
 
 ========================================
 File: "src/mcp/server/fastmcp/__init__.py"
@@ -231,8 +454,8 @@ __all__ = ["Server", "NotificationOptions"]
 
 ========================================
 File: "src/mcp/client/__main__.py"
-Size: 2265 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 2506 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 import argparse
 import logging
@@ -241,10 +464,14 @@ from functools import partial
 from urllib.parse import urlparse
 
 import anyio
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+import mcp.types as types
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.shared.session import RequestResponder
+from mcp.types import JSONRPCMessage
 
 if not sys.warnoptions:
     import warnings
@@ -255,23 +482,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("client")
 
 
-async def receive_loop(session: ClientSession):
-    logger.info("Starting receive loop")
-    async for message in session.incoming_messages:
-        if isinstance(message, Exception):
-            logger.error("Error: %s", message)
-            continue
+async def message_handler(
+    message: RequestResponder[types.ServerRequest, types.ClientResult]
+    | types.ServerNotification
+    | Exception,
+) -> None:
+    if isinstance(message, Exception):
+        logger.error("Error: %s", message)
+        return
 
-        logger.info("Received message from server: %s", message)
+    logger.info("Received message from server: %s", message)
 
 
-async def run_session(read_stream, write_stream):
-    async with (
-        ClientSession(read_stream, write_stream) as session,
-        anyio.create_task_group() as tg,
-    ):
-        tg.start_soon(receive_loop, session)
-
+async def run_session(
+    read_stream: MemoryObjectReceiveStream[JSONRPCMessage | Exception],
+    write_stream: MemoryObjectSendStream[JSONRPCMessage],
+):
+    async with ClientSession(
+        read_stream, write_stream, message_handler=message_handler
+    ) as session:
         logger.info("Initializing session")
         await session.initialize()
         logger.info("Initialized")
@@ -372,15 +601,15 @@ if __name__ == "__main__":
 
 ========================================
 File: "src/mcp/server/fastmcp/prompts/base.py"
-Size: 5554 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 5719 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 """Base classes for FastMCP prompts."""
 
 import inspect
 import json
-from collections.abc import Callable
-from typing import Any, Awaitable, Literal, Sequence
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any, Literal
 
 import pydantic_core
 from pydantic import BaseModel, Field, TypeAdapter, validate_call
@@ -396,7 +625,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant"]
     content: CONTENT_TYPES
 
-    def __init__(self, content: str | CONTENT_TYPES, **kwargs):
+    def __init__(self, content: str | CONTENT_TYPES, **kwargs: Any):
         if isinstance(content, str):
             content = TextContent(type="text", text=content)
         super().__init__(content=content, **kwargs)
@@ -407,7 +636,7 @@ class UserMessage(Message):
 
     role: Literal["user", "assistant"] = "user"
 
-    def __init__(self, content: str | CONTENT_TYPES, **kwargs):
+    def __init__(self, content: str | CONTENT_TYPES, **kwargs: Any):
         super().__init__(content=content, **kwargs)
 
 
@@ -416,11 +645,13 @@ class AssistantMessage(Message):
 
     role: Literal["user", "assistant"] = "assistant"
 
-    def __init__(self, content: str | CONTENT_TYPES, **kwargs):
+    def __init__(self, content: str | CONTENT_TYPES, **kwargs: Any):
         super().__init__(content=content, **kwargs)
 
 
-message_validator = TypeAdapter(UserMessage | AssistantMessage)
+message_validator = TypeAdapter[UserMessage | AssistantMessage](
+    UserMessage | AssistantMessage
+)
 
 SyncPromptResult = (
     str | Message | dict[str, Any] | Sequence[str | Message | dict[str, Any]]
@@ -450,12 +681,12 @@ class Prompt(BaseModel):
     arguments: list[PromptArgument] | None = Field(
         None, description="Arguments that can be passed to the prompt"
     )
-    fn: Callable = Field(exclude=True)
+    fn: Callable[..., PromptResult | Awaitable[PromptResult]] = Field(exclude=True)
 
     @classmethod
     def from_function(
         cls,
-        fn: Callable[..., PromptResult],
+        fn: Callable[..., PromptResult | Awaitable[PromptResult]],
         name: str | None = None,
         description: str | None = None,
     ) -> "Prompt":
@@ -476,7 +707,7 @@ class Prompt(BaseModel):
         parameters = TypeAdapter(fn).json_schema()
 
         # Convert parameters to PromptArguments
-        arguments = []
+        arguments: list[PromptArgument] = []
         if "properties" in parameters:
             for param_name, param in parameters["properties"].items():
                 required = param_name in parameters.get("required", [])
@@ -515,25 +746,23 @@ class Prompt(BaseModel):
                 result = await result
 
             # Validate messages
-            if not isinstance(result, (list, tuple)):
+            if not isinstance(result, list | tuple):
                 result = [result]
 
             # Convert result to messages
-            messages = []
-            for msg in result:
+            messages: list[Message] = []
+            for msg in result:  # type: ignore[reportUnknownVariableType]
                 try:
                     if isinstance(msg, Message):
                         messages.append(msg)
                     elif isinstance(msg, dict):
-                        msg = message_validator.validate_python(msg)
-                        messages.append(msg)
+                        messages.append(message_validator.validate_python(msg))
                     elif isinstance(msg, str):
-                        messages.append(
-                            UserMessage(content=TextContent(type="text", text=msg))
-                        )
+                        content = TextContent(type="text", text=msg)
+                        messages.append(UserMessage(content=content))
                     else:
-                        msg = json.dumps(pydantic_core.to_jsonable_python(msg))
-                        messages.append(Message(role="user", content=msg))
+                        content = json.dumps(pydantic_core.to_jsonable_python(msg))
+                        messages.append(Message(role="user", content=content))
                 except Exception:
                     raise ValueError(
                         f"Could not convert prompt result to message: {msg}"
@@ -599,29 +828,33 @@ class Resource(BaseModel, abc.ABC):
 
 ========================================
 File: "src/mcp/server/fastmcp/tools/base.py"
-Size: 2837 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 3076 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
+from __future__ import annotations as _annotations
+
 import inspect
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-import mcp.server.fastmcp
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata, func_metadata
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp.server import Context
+    from mcp.server.session import ServerSessionT
+    from mcp.shared.context import LifespanContextT
 
 
 class Tool(BaseModel):
     """Internal tool registration info."""
 
-    fn: Callable = Field(exclude=True)
+    fn: Callable[..., Any] = Field(exclude=True)
     name: str = Field(description="Name of the tool")
     description: str = Field(description="Description of what the tool does")
-    parameters: dict = Field(description="JSON schema for tool parameters")
+    parameters: dict[str, Any] = Field(description="JSON schema for tool parameters")
     fn_metadata: FuncMetadata = Field(
         description="Metadata about the function including a pydantic model for tool"
         " arguments"
@@ -634,12 +867,14 @@ class Tool(BaseModel):
     @classmethod
     def from_function(
         cls,
-        fn: Callable,
+        fn: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
         context_kwarg: str | None = None,
-    ) -> "Tool":
+    ) -> Tool:
         """Create a Tool from a function."""
+        from mcp.server.fastmcp import Context
+
         func_name = name or fn.__name__
 
         if func_name == "<lambda>":
@@ -648,11 +883,10 @@ class Tool(BaseModel):
         func_doc = description or fn.__doc__ or ""
         is_async = inspect.iscoroutinefunction(fn)
 
-        # Find context parameter if it exists
         if context_kwarg is None:
             sig = inspect.signature(fn)
             for param_name, param in sig.parameters.items():
-                if param.annotation is mcp.server.fastmcp.Context:
+                if param.annotation is Context:
                     context_kwarg = param_name
                     break
 
@@ -672,7 +906,11 @@ class Tool(BaseModel):
             context_kwarg=context_kwarg,
         )
 
-    async def run(self, arguments: dict, context: "Context | None" = None) -> Any:
+    async def run(
+        self,
+        arguments: dict[str, Any],
+        context: Context[ServerSessionT, LifespanContextT] | None = None,
+    ) -> Any:
         """Run the tool with arguments."""
         try:
             return await self.fn_metadata.call_fn_with_arg_validation(
@@ -688,14 +926,16 @@ class Tool(BaseModel):
 
 ========================================
 File: "src/mcp/cli/claude.py"
-Size: 4433 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 4602 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 """Claude app integration utilities."""
 
 import json
+import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from mcp.server.fastmcp.utilities.logging import get_logger
 
@@ -710,6 +950,10 @@ def get_claude_config_path() -> Path | None:
         path = Path(Path.home(), "AppData", "Roaming", "Claude")
     elif sys.platform == "darwin":
         path = Path(Path.home(), "Library", "Application Support", "Claude")
+    elif sys.platform.startswith("linux"):
+        path = Path(
+            os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"), "Claude"
+        )
     else:
         return None
 
@@ -804,10 +1048,7 @@ def update_claude_config(
         # Add fastmcp run command
         args.extend(["mcp", "run", file_spec])
 
-        server_config = {
-            "command": "uv",
-            "args": args,
-        }
+        server_config: dict[str, Any] = {"command": "uv", "args": args}
 
         # Add environment variables if specified
         if env_vars:
@@ -833,8 +1074,8 @@ def update_claude_config(
 
 ========================================
 File: "src/mcp/cli/cli.py"
-Size: 13896 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 13919 bytes
+Last Modified: SystemTime { tv_sec: 1742279049, tv_nsec: 379065967 }
 ========================================
 """MCP CLI tools."""
 
@@ -1132,15 +1373,14 @@ def run(
 ) -> None:
     """Run a MCP server.
 
-    The server can be specified in two ways:
-    1. Module approach: server.py - runs the module directly, expecting a server.run()
-       call
-    2. Import approach: server.py:app - imports and runs the specified server object
+    The server can be specified in two ways:\n
+    1. Module approach: server.py - runs the module directly, expecting a server.run() call.\n
+    2. Import approach: server.py:app - imports and runs the specified server object.\n\n
 
     Note: This command runs the server directly. You are responsible for ensuring
-    all dependencies are available. For dependency management, use mcp install
-    or mcp dev instead.
-    """
+    all dependencies are available.\n
+    For dependency management, use `mcp install` or `mcp dev` instead.
+    """  # noqa: E501
     file, server_object = _parse_file_path(file_spec)
 
     logger.debug(
@@ -1310,16 +1550,18 @@ def install(
 
 ========================================
 File: "src/mcp/shared/context.py"
-Size: 454 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 514 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Any, Generic
+
+from typing_extensions import TypeVar
 
 from mcp.shared.session import BaseSession
 from mcp.types import RequestId, RequestParams
 
-SessionT = TypeVar("SessionT", bound=BaseSession)
+SessionT = TypeVar("SessionT", bound=BaseSession[Any, Any, Any, Any, Any])
 LifespanContextT = TypeVar("LifespanContextT")
 
 
@@ -1379,8 +1621,8 @@ class McpError(Exception):
 
 ========================================
 File: "src/mcp/server/fastmcp/utilities/func_metadata.py"
-Size: 7649 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 7751 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
 import inspect
 import json
@@ -1464,7 +1706,7 @@ class FuncMetadata(BaseModel):
         dicts (JSON objects) as JSON strings, which can be pre-parsed here.
         """
         new_data = data.copy()  # Shallow copy
-        for field_name, field_info in self.arg_model.model_fields.items():
+        for field_name, _field_info in self.arg_model.model_fields.items():
             if field_name not in data.keys():
                 continue
             if isinstance(data[field_name], str):
@@ -1472,7 +1714,7 @@ class FuncMetadata(BaseModel):
                     pre_parsed = json.loads(data[field_name])
                 except json.JSONDecodeError:
                     continue  # Not JSON - skip
-                if isinstance(pre_parsed, str):
+                if isinstance(pre_parsed, str | int | float):
                     # This is likely that the raw value is e.g. `"hello"` which we
                     # Should really be parsed as '"hello"' in Python - but if we parse
                     # it as JSON it'll turn into just 'hello'. So we skip it.
@@ -1486,7 +1728,9 @@ class FuncMetadata(BaseModel):
     )
 
 
-def func_metadata(func: Callable, skip_names: Sequence[str] = ()) -> FuncMetadata:
+def func_metadata(
+    func: Callable[..., Any], skip_names: Sequence[str] = ()
+) -> FuncMetadata:
     """Given a function, return metadata including a pydantic model representing its
     signature.
 
@@ -1559,7 +1803,9 @@ def func_metadata(func: Callable, skip_names: Sequence[str] = ()) -> FuncMetadat
 
 
 def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
-    def try_eval_type(value, globalns, localns):
+    def try_eval_type(
+        value: Any, globalns: dict[str, Any], localns: dict[str, Any]
+    ) -> tuple[Any, bool]:
         try:
             return eval_type_backport(value, globalns, localns), True
         except NameError:
@@ -1610,8 +1856,8 @@ class ReadResourceContents:
 
 ========================================
 File: "src/mcp/server/fastmcp/utilities/logging.py"
-Size: 980 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 1003 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
 """Logging utilities for FastMCP."""
 
@@ -1639,7 +1885,7 @@ def configure_logging(
     Args:
         level: the log level to use
     """
-    handlers = []
+    handlers: list[logging.Handler] = []
     try:
         from rich.console import Console
         from rich.logging import RichHandler
@@ -1715,21 +1961,28 @@ class PromptManager:
 
 ========================================
 File: "src/mcp/shared/memory.py"
-Size: 3052 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 3355 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
 """
 In-memory transports
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from typing import AsyncGenerator
+from typing import Any
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-from mcp.client.session import ClientSession, ListRootsFnT, SamplingFnT
+from mcp.client.session import (
+    ClientSession,
+    ListRootsFnT,
+    LoggingFnT,
+    MessageHandlerFnT,
+    SamplingFnT,
+)
 from mcp.server import Server
 from mcp.types import JSONRPCMessage
 
@@ -1772,10 +2025,12 @@ async def create_client_server_memory_streams() -> (
 
 @asynccontextmanager
 async def create_connected_server_and_client_session(
-    server: Server,
+    server: Server[Any],
     read_timeout_seconds: timedelta | None = None,
     sampling_callback: SamplingFnT | None = None,
     list_roots_callback: ListRootsFnT | None = None,
+    logging_callback: LoggingFnT | None = None,
+    message_handler: MessageHandlerFnT | None = None,
     raise_exceptions: bool = False,
 ) -> AsyncGenerator[ClientSession, None]:
     """Creates a ClientSession that is connected to a running MCP server."""
@@ -1804,6 +2059,8 @@ async def create_connected_server_and_client_session(
                     read_timeout_seconds=read_timeout_seconds,
                     sampling_callback=sampling_callback,
                     list_roots_callback=list_roots_callback,
+                    logging_callback=logging_callback,
+                    message_handler=message_handler,
                 ) as client_session:
                     await client_session.initialize()
                     yield client_session
@@ -1835,16 +2092,25 @@ class InitializationOptions(BaseModel):
 
 ========================================
 File: "src/mcp/shared/progress.py"
-Size: 1033 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 1909 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from typing import Generic
 
 from pydantic import BaseModel
 
-from mcp.shared.context import RequestContext
-from mcp.shared.session import BaseSession
+from mcp.shared.context import LifespanContextT, RequestContext
+from mcp.shared.session import (
+    BaseSession,
+    ReceiveNotificationT,
+    ReceiveRequestT,
+    SendNotificationT,
+    SendRequestT,
+    SendResultT,
+)
 from mcp.types import ProgressToken
 
 
@@ -1854,8 +2120,22 @@ class Progress(BaseModel):
 
 
 @dataclass
-class ProgressContext:
-    session: BaseSession
+class ProgressContext(
+    Generic[
+        SendRequestT,
+        SendNotificationT,
+        SendResultT,
+        ReceiveRequestT,
+        ReceiveNotificationT,
+    ]
+):
+    session: BaseSession[
+        SendRequestT,
+        SendNotificationT,
+        SendResultT,
+        ReceiveRequestT,
+        ReceiveNotificationT,
+    ]
     progress_token: ProgressToken
     total: float | None
     current: float = field(default=0.0, init=False)
@@ -1869,7 +2149,28 @@ class ProgressContext:
 
 
 @contextmanager
-def progress(ctx: RequestContext, total: float | None = None):
+def progress(
+    ctx: RequestContext[
+        BaseSession[
+            SendRequestT,
+            SendNotificationT,
+            SendResultT,
+            ReceiveRequestT,
+            ReceiveNotificationT,
+        ],
+        LifespanContextT,
+    ],
+    total: float | None = None,
+) -> Generator[
+    ProgressContext[
+        SendRequestT,
+        SendNotificationT,
+        SendResultT,
+        ReceiveRequestT,
+        ReceiveNotificationT,
+    ],
+    None,
+]:
     if ctx.meta is None or ctx.meta.progressToken is None:
         raise ValueError("No progress token provided")
 
@@ -1920,12 +2221,13 @@ class PromptManager:
 
 ========================================
 File: "src/mcp/server/fastmcp/resources/resource_manager.py"
-Size: 3272 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 3314 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 """Resource manager functionality."""
 
-from typing import Callable
+from collections.abc import Callable
+from typing import Any
 
 from pydantic import AnyUrl
 
@@ -1972,7 +2274,7 @@ class ResourceManager:
 
     def add_template(
         self,
-        fn: Callable,
+        fn: Callable[..., Any],
         uri_template: str,
         name: str | None = None,
         description: str | None = None,
@@ -2020,21 +2322,23 @@ class ResourceManager:
 
 ========================================
 File: "src/mcp/server/fastmcp/server.py"
-Size: 24022 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 24591 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 """FastMCP - A more ergonomic interface for MCP servers."""
+
+from __future__ import annotations as _annotations
 
 import inspect
 import json
 import re
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable, Sequence
 from contextlib import (
     AbstractAsyncContextManager,
     asynccontextmanager,
 )
 from itertools import chain
-from typing import Any, Callable, Generic, Literal, Sequence
+from typing import Any, Generic, Literal
 
 import anyio
 import pydantic_core
@@ -2042,6 +2346,9 @@ import uvicorn
 from pydantic import BaseModel, Field
 from pydantic.networks import AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.routing import Mount, Route
 
 from mcp.server.fastmcp.exceptions import ResourceError
 from mcp.server.fastmcp.prompts import Prompt, PromptManager
@@ -2050,19 +2357,13 @@ from mcp.server.fastmcp.tools import ToolManager
 from mcp.server.fastmcp.utilities.logging import configure_logging, get_logger
 from mcp.server.fastmcp.utilities.types import Image
 from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.server.lowlevel.server import (
-    LifespanResultT,
-)
-from mcp.server.lowlevel.server import (
-    Server as MCPServer,
-)
-from mcp.server.lowlevel.server import (
-    lifespan as default_lifespan,
-)
-from mcp.server.session import ServerSession
+from mcp.server.lowlevel.server import LifespanResultT
+from mcp.server.lowlevel.server import Server as MCPServer
+from mcp.server.lowlevel.server import lifespan as default_lifespan
+from mcp.server.session import ServerSession, ServerSessionT
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
-from mcp.shared.context import RequestContext
+from mcp.shared.context import LifespanContextT, RequestContext
 from mcp.types import (
     AnyFunction,
     EmbeddedResource,
@@ -2070,21 +2371,11 @@ from mcp.types import (
     ImageContent,
     TextContent,
 )
-from mcp.types import (
-    Prompt as MCPPrompt,
-)
-from mcp.types import (
-    PromptArgument as MCPPromptArgument,
-)
-from mcp.types import (
-    Resource as MCPResource,
-)
-from mcp.types import (
-    ResourceTemplate as MCPResourceTemplate,
-)
-from mcp.types import (
-    Tool as MCPTool,
-)
+from mcp.types import Prompt as MCPPrompt
+from mcp.types import PromptArgument as MCPPromptArgument
+from mcp.types import Resource as MCPResource
+from mcp.types import ResourceTemplate as MCPResourceTemplate
+from mcp.types import Tool as MCPTool
 
 logger = get_logger(__name__)
 
@@ -2109,6 +2400,8 @@ class Settings(BaseSettings, Generic[LifespanResultT]):
     # HTTP settings
     host: str = "0.0.0.0"
     port: int = 8000
+    sse_path: str = "/sse"
+    message_path: str = "/messages/"
 
     # resource settings
     warn_on_duplicate_resources: bool = True
@@ -2125,16 +2418,16 @@ class Settings(BaseSettings, Generic[LifespanResultT]):
     )
 
     lifespan: (
-        Callable[["FastMCP"], AbstractAsyncContextManager[LifespanResultT]] | None
+        Callable[[FastMCP], AbstractAsyncContextManager[LifespanResultT]] | None
     ) = Field(None, description="Lifespan context manager")
 
 
 def lifespan_wrapper(
-    app: "FastMCP",
-    lifespan: Callable[["FastMCP"], AbstractAsyncContextManager[LifespanResultT]],
-) -> Callable[[MCPServer], AbstractAsyncContextManager[object]]:
+    app: FastMCP,
+    lifespan: Callable[[FastMCP], AbstractAsyncContextManager[LifespanResultT]],
+) -> Callable[[MCPServer[LifespanResultT]], AbstractAsyncContextManager[object]]:
     @asynccontextmanager
-    async def wrap(s: MCPServer) -> AsyncIterator[object]:
+    async def wrap(s: MCPServer[LifespanResultT]) -> AsyncIterator[object]:
         async with lifespan(app) as context:
             yield context
 
@@ -2216,7 +2509,7 @@ class FastMCP:
             for info in tools
         ]
 
-    def get_context(self) -> "Context":
+    def get_context(self) -> Context[ServerSession, object]:
         """
         Returns a Context object. Note that the context will only be valid
         during a request; outside a request, most methods will error.
@@ -2500,28 +2793,7 @@ class FastMCP:
 
     async def run_sse_async(self) -> None:
         """Run the server using SSE transport."""
-        from starlette.applications import Starlette
-        from starlette.routing import Mount, Route
-
-        sse = SseServerTransport("/messages/")
-
-        async def handle_sse(request):
-            async with sse.connect_sse(
-                request.scope, request.receive, request._send
-            ) as streams:
-                await self._mcp_server.run(
-                    streams[0],
-                    streams[1],
-                    self._mcp_server.create_initialization_options(),
-                )
-
-        starlette_app = Starlette(
-            debug=self.settings.debug,
-            routes=[
-                Route("/sse", endpoint=handle_sse),
-                Mount("/messages/", app=sse.handle_post_message),
-            ],
-        )
+        starlette_app = self.sse_app()
 
         config = uvicorn.Config(
             starlette_app,
@@ -2531,6 +2803,30 @@ class FastMCP:
         )
         server = uvicorn.Server(config)
         await server.serve()
+
+    def sse_app(self) -> Starlette:
+        """Return an instance of the SSE server app."""
+        sse = SseServerTransport(self.settings.message_path)
+
+        async def handle_sse(request: Request) -> None:
+            async with sse.connect_sse(
+                request.scope,
+                request.receive,
+                request._send,  # type: ignore[reportPrivateUsage]
+            ) as streams:
+                await self._mcp_server.run(
+                    streams[0],
+                    streams[1],
+                    self._mcp_server.create_initialization_options(),
+                )
+
+        return Starlette(
+            debug=self.settings.debug,
+            routes=[
+                Route(self.settings.sse_path, endpoint=handle_sse),
+                Mount(self.settings.message_path, app=sse.handle_post_message),
+            ],
+        )
 
     async def list_prompts(self) -> list[MCPPrompt]:
         """List all available prompts."""
@@ -2571,14 +2867,14 @@ def _convert_to_content(
     if result is None:
         return []
 
-    if isinstance(result, (TextContent, ImageContent, EmbeddedResource)):
+    if isinstance(result, TextContent | ImageContent | EmbeddedResource):
         return [result]
 
     if isinstance(result, Image):
         return [result.to_image_content()]
 
-    if isinstance(result, (list, tuple)):
-        return list(chain.from_iterable(_convert_to_content(item) for item in result))
+    if isinstance(result, list | tuple):
+        return list(chain.from_iterable(_convert_to_content(item) for item in result))  # type: ignore[reportUnknownVariableType]
 
     if not isinstance(result, str):
         try:
@@ -2589,7 +2885,7 @@ def _convert_to_content(
     return [TextContent(type="text", text=result)]
 
 
-class Context(BaseModel):
+class Context(BaseModel, Generic[ServerSessionT, LifespanContextT]):
     """Context object providing access to MCP capabilities.
 
     This provides a cleaner interface to MCP's RequestContext functionality.
@@ -2623,13 +2919,13 @@ class Context(BaseModel):
     The context is optional - tools that don't need it can omit the parameter.
     """
 
-    _request_context: RequestContext[ServerSession, Any] | None
+    _request_context: RequestContext[ServerSessionT, LifespanContextT] | None
     _fastmcp: FastMCP | None
 
     def __init__(
         self,
         *,
-        request_context: RequestContext | None = None,
+        request_context: RequestContext[ServerSessionT, LifespanContextT] | None = None,
         fastmcp: FastMCP | None = None,
         **kwargs: Any,
     ):
@@ -2645,7 +2941,7 @@ class Context(BaseModel):
         return self._fastmcp
 
     @property
-    def request_context(self) -> RequestContext:
+    def request_context(self) -> RequestContext[ServerSessionT, LifespanContextT]:
         """Access to the underlying request context."""
         if self._request_context is None:
             raise ValueError("Context is not available outside of a request")
@@ -2745,8 +3041,8 @@ class Context(BaseModel):
 
 ========================================
 File: "src/mcp/server/lowlevel/server.py"
-Size: 21148 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 21248 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
 """
 MCP Server Module
@@ -2814,12 +3110,14 @@ notifications. It automatically manages the request context and handles incoming
 messages from the client.
 """
 
+from __future__ import annotations as _annotations
+
 import contextvars
 import logging
 import warnings
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
-from typing import Any, AsyncIterator, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -2857,7 +3155,7 @@ class NotificationOptions:
 
 
 @asynccontextmanager
-async def lifespan(server: "Server") -> AsyncIterator[object]:
+async def lifespan(server: Server[LifespanResultT]) -> AsyncIterator[object]:
     """Default lifespan context manager that does nothing.
 
     Args:
@@ -2876,7 +3174,7 @@ class Server(Generic[LifespanResultT]):
         version: str | None = None,
         instructions: str | None = None,
         lifespan: Callable[
-            ["Server"], AbstractAsyncContextManager[LifespanResultT]
+            [Server[LifespanResultT]], AbstractAsyncContextManager[LifespanResultT]
         ] = lifespan,
     ):
         self.name = name
@@ -2903,9 +3201,7 @@ class Server(Generic[LifespanResultT]):
             try:
                 from importlib.metadata import version
 
-                v = version(package)
-                if v is not None:
-                    return v
+                return version(package)
             except Exception:
                 pass
 
@@ -3051,7 +3347,7 @@ class Server(Generic[LifespanResultT]):
 
                             return types.BlobResourceContents(
                                 uri=req.params.uri,
-                                blob=base64.urlsafe_b64encode(data).decode(),
+                                blob=base64.b64encode(data).decode(),
                                 mimeType=mime_type or "application/octet-stream",
                             )
 
@@ -3068,7 +3364,6 @@ class Server(Generic[LifespanResultT]):
                         contents_list = [
                             create_content(content_item.content, content_item.mime_type)
                             for content_item in contents
-                            if isinstance(content_item, ReadResourceContents)
                         ]
                         return types.ServerResult(
                             types.ReadResourceResult(
@@ -3259,7 +3554,8 @@ class Server(Generic[LifespanResultT]):
         raise_exceptions: bool = False,
     ):
         with warnings.catch_warnings(record=True) as w:
-            match message:
+            # TODO(Marcelo): We should be checking if message is Exception here.
+            match message:  # type: ignore[reportMatchNotExhaustive]
                 case (
                     RequestResponder(request=types.ClientRequest(root=req)) as responder
                 ):
@@ -3275,7 +3571,7 @@ class Server(Generic[LifespanResultT]):
 
     async def _handle_request(
         self,
-        message: RequestResponder,
+        message: RequestResponder[types.ClientRequest, types.ServerResult],
         req: Any,
         session: ServerSession,
         lifespan_context: LifespanResultT,
@@ -3341,12 +3637,13 @@ async def _ping_handler(request: types.PingRequest) -> types.ServerResult:
 
 ========================================
 File: "src/mcp/client/session.py"
-Size: 11199 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 12778 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 from datetime import timedelta
 from typing import Any, Protocol
 
+import anyio.lowlevel
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from pydantic import AnyUrl, TypeAdapter
 
@@ -3370,6 +3667,30 @@ class ListRootsFnT(Protocol):
     ) -> types.ListRootsResult | types.ErrorData: ...
 
 
+class LoggingFnT(Protocol):
+    async def __call__(
+        self,
+        params: types.LoggingMessageNotificationParams,
+    ) -> None: ...
+
+
+class MessageHandlerFnT(Protocol):
+    async def __call__(
+        self,
+        message: RequestResponder[types.ServerRequest, types.ClientResult]
+        | types.ServerNotification
+        | Exception,
+    ) -> None: ...
+
+
+async def _default_message_handler(
+    message: RequestResponder[types.ServerRequest, types.ClientResult]
+    | types.ServerNotification
+    | Exception,
+) -> None:
+    await anyio.lowlevel.checkpoint()
+
+
 async def _default_sampling_callback(
     context: RequestContext["ClientSession", Any],
     params: types.CreateMessageRequestParams,
@@ -3389,7 +3710,15 @@ async def _default_list_roots_callback(
     )
 
 
-ClientResponse = TypeAdapter(types.ClientResult | types.ErrorData)
+async def _default_logging_callback(
+    params: types.LoggingMessageNotificationParams,
+) -> None:
+    pass
+
+
+ClientResponse: TypeAdapter[types.ClientResult | types.ErrorData] = TypeAdapter(
+    types.ClientResult | types.ErrorData
+)
 
 
 class ClientSession(
@@ -3408,6 +3737,8 @@ class ClientSession(
         read_timeout_seconds: timedelta | None = None,
         sampling_callback: SamplingFnT | None = None,
         list_roots_callback: ListRootsFnT | None = None,
+        logging_callback: LoggingFnT | None = None,
+        message_handler: MessageHandlerFnT | None = None,
     ) -> None:
         super().__init__(
             read_stream,
@@ -3418,20 +3749,16 @@ class ClientSession(
         )
         self._sampling_callback = sampling_callback or _default_sampling_callback
         self._list_roots_callback = list_roots_callback or _default_list_roots_callback
+        self._logging_callback = logging_callback or _default_logging_callback
+        self._message_handler = message_handler or _default_message_handler
 
     async def initialize(self) -> types.InitializeResult:
-        sampling = (
-            types.SamplingCapability() if self._sampling_callback is not None else None
-        )
-        roots = (
-            types.RootsCapability(
-                # TODO: Should this be based on whether we
-                # _will_ send notifications, or only whether
-                # they're supported?
-                listChanged=True,
-            )
-            if self._list_roots_callback is not None
-            else None
+        sampling = types.SamplingCapability()
+        roots = types.RootsCapability(
+            # TODO: Should this be based on whether we
+            # _will_ send notifications, or only whether
+            # they're supported?
+            listChanged=True,
         )
 
         result = await self.send_request(
@@ -3565,7 +3892,7 @@ class ClientSession(
         )
 
     async def call_tool(
-        self, name: str, arguments: dict | None = None
+        self, name: str, arguments: dict[str, Any] | None = None
     ) -> types.CallToolResult:
         """Send a tools/call request."""
         return await self.send_request(
@@ -3604,7 +3931,9 @@ class ClientSession(
         )
 
     async def complete(
-        self, ref: types.ResourceReference | types.PromptReference, argument: dict
+        self,
+        ref: types.ResourceReference | types.PromptReference,
+        argument: dict[str, str],
     ) -> types.CompleteResult:
         """Send a completion/complete request."""
         return await self.send_request(
@@ -3670,10 +3999,30 @@ class ClientSession(
                         types.ClientResult(root=types.EmptyResult())
                     )
 
+    async def _handle_incoming(
+        self,
+        req: RequestResponder[types.ServerRequest, types.ClientResult]
+        | types.ServerNotification
+        | Exception,
+    ) -> None:
+        """Handle incoming messages by forwarding to the message handler."""
+        await self._message_handler(req)
+
+    async def _received_notification(
+        self, notification: types.ServerNotification
+    ) -> None:
+        """Handle notifications from the server."""
+        # Process specific notification types
+        match notification.root:
+            case types.LoggingMessageNotification(params=params):
+                await self._logging_callback(params)
+            case _:
+                pass
+
 ========================================
 File: "src/mcp/server/session.py"
-Size: 10529 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 11464 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
 """
 ServerSession Module
@@ -3715,7 +4064,7 @@ be instantiated directly by users of the MCP framework.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, TypeVar
 
 import anyio
 import anyio.lowlevel
@@ -3734,6 +4083,15 @@ class InitializationState(Enum):
     NotInitialized = 1
     Initializing = 2
     Initialized = 3
+
+
+ServerSessionT = TypeVar("ServerSessionT", bound="ServerSession")
+
+ServerRequestResponder = (
+    RequestResponder[types.ClientRequest, types.ServerResult]
+    | types.ClientNotification
+    | Exception
+)
 
 
 class ServerSession(
@@ -3759,6 +4117,15 @@ class ServerSession(
         )
         self._initialization_state = InitializationState.NotInitialized
         self._init_options = init_options
+        self._incoming_message_stream_writer, self._incoming_message_stream_reader = (
+            anyio.create_memory_object_stream[ServerRequestResponder](0)
+        )
+        self._exit_stack.push_async_callback(
+            lambda: self._incoming_message_stream_reader.aclose()
+        )
+        self._exit_stack.push_async_callback(
+            lambda: self._incoming_message_stream_writer.aclose()
+        )
 
     @property
     def client_params(self) -> types.InitializeRequestParams | None:
@@ -3966,21 +4333,33 @@ class ServerSession(
             )
         )
 
+    async def _handle_incoming(self, req: ServerRequestResponder) -> None:
+        await self._incoming_message_stream_writer.send(req)
+
+    @property
+    def incoming_messages(
+        self,
+    ) -> MemoryObjectReceiveStream[ServerRequestResponder]:
+        return self._incoming_message_stream_reader
+
 ========================================
 File: "src/mcp/shared/session.py"
-Size: 14270 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 14576 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
 import logging
-from contextlib import AbstractAsyncContextManager
+from collections.abc import Callable
+from contextlib import AsyncExitStack
 from datetime import timedelta
-from typing import Any, Callable, Generic, TypeVar
+from types import TracebackType
+from typing import Any, Generic, TypeVar
 
 import anyio
 import anyio.lowlevel
 import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from pydantic import BaseModel
+from typing_extensions import Self
 
 from mcp.shared.exceptions import McpError
 from mcp.types import (
@@ -4033,7 +4412,13 @@ class RequestResponder(Generic[ReceiveRequestT, SendResultT]):
         request_id: RequestId,
         request_meta: RequestParams.Meta | None,
         request: ReceiveRequestT,
-        session: "BaseSession",
+        session: """BaseSession[
+            SendRequestT,
+            SendNotificationT,
+            SendResultT,
+            ReceiveRequestT,
+            ReceiveNotificationT
+        ]""",
         on_complete: Callable[["RequestResponder[ReceiveRequestT, SendResultT]"], Any],
     ) -> None:
         self.request_id = request_id
@@ -4052,7 +4437,12 @@ class RequestResponder(Generic[ReceiveRequestT, SendResultT]):
         self._cancel_scope.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit the context manager, performing cleanup and notifying completion."""
         try:
             if self._completed:
@@ -4078,7 +4468,7 @@ class RequestResponder(Generic[ReceiveRequestT, SendResultT]):
         if not self.cancelled:
             self._completed = True
 
-            await self._session._send_response(
+            await self._session._send_response(  # type: ignore[reportPrivateUsage]
                 request_id=self.request_id, response=response
             )
 
@@ -4092,7 +4482,7 @@ class RequestResponder(Generic[ReceiveRequestT, SendResultT]):
         self._cancel_scope.cancel()
         self._completed = True  # Mark as completed so it's removed from in_flight
         # Send an error response to indicate cancellation
-        await self._session._send_response(
+        await self._session._send_response(  # type: ignore[reportPrivateUsage]
             request_id=self.request_id,
             response=ErrorData(code=0, message="Request cancelled", data=None),
         )
@@ -4103,11 +4493,10 @@ class RequestResponder(Generic[ReceiveRequestT, SendResultT]):
 
     @property
     def cancelled(self) -> bool:
-        return self._cancel_scope is not None and self._cancel_scope.cancel_called
+        return self._cancel_scope.cancel_called
 
 
 class BaseSession(
-    AbstractAsyncContextManager,
     Generic[
         SendRequestT,
         SendNotificationT,
@@ -4148,21 +4537,21 @@ class BaseSession(
         self._read_timeout_seconds = read_timeout_seconds
         self._in_flight = {}
 
-        self._incoming_message_stream_writer, self._incoming_message_stream_reader = (
-            anyio.create_memory_object_stream[
-                RequestResponder[ReceiveRequestT, SendResultT]
-                | ReceiveNotificationT
-                | Exception
-            ]()
-        )
+        self._exit_stack = AsyncExitStack()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         self._task_group = anyio.create_task_group()
         await self._task_group.__aenter__()
         self._task_group.start_soon(self._receive_loop)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        await self._exit_stack.aclose()
         # Using BaseSession as a context manager should not block on exit (this
         # would be very surprising behavior), so make sure to cancel the tasks
         # in the task group.
@@ -4189,6 +4578,9 @@ class BaseSession(
             JSONRPCResponse | JSONRPCError
         ](1)
         self._response_streams[request_id] = response_stream
+
+        self._exit_stack.push_async_callback(lambda: response_stream.aclose())
+        self._exit_stack.push_async_callback(lambda: response_stream_reader.aclose())
 
         jsonrpc_request = JSONRPCRequest(
             jsonrpc="2.0",
@@ -4256,11 +4648,10 @@ class BaseSession(
         async with (
             self._read_stream,
             self._write_stream,
-            self._incoming_message_stream_writer,
         ):
             async for message in self._read_stream:
                 if isinstance(message, Exception):
-                    await self._incoming_message_stream_writer.send(message)
+                    await self._handle_incoming(message)
                 elif isinstance(message.root, JSONRPCRequest):
                     validated_request = self._receive_request_type.model_validate(
                         message.root.model_dump(
@@ -4280,8 +4671,9 @@ class BaseSession(
 
                     self._in_flight[responder.request_id] = responder
                     await self._received_request(responder)
-                    if not responder._completed:
-                        await self._incoming_message_stream_writer.send(responder)
+
+                    if not responder._completed:  # type: ignore[reportPrivateUsage]
+                        await self._handle_incoming(responder)
 
                 elif isinstance(message.root, JSONRPCNotification):
                     try:
@@ -4297,9 +4689,7 @@ class BaseSession(
                                 await self._in_flight[cancelled_id].cancel()
                         else:
                             await self._received_notification(notification)
-                            await self._incoming_message_stream_writer.send(
-                                notification
-                            )
+                            await self._handle_incoming(notification)
                     except Exception as e:
                         # For other validation errors, log and continue
                         logging.warning(
@@ -4311,7 +4701,7 @@ class BaseSession(
                     if stream:
                         await stream.send(message.root)
                     else:
-                        await self._incoming_message_stream_writer.send(
+                        await self._handle_incoming(
                             RuntimeError(
                                 "Received response with an unknown "
                                 f"request ID: {message}"
@@ -4343,20 +4733,19 @@ class BaseSession(
         processed.
         """
 
-    @property
-    def incoming_messages(
+    async def _handle_incoming(
         self,
-    ) -> MemoryObjectReceiveStream[
-        RequestResponder[ReceiveRequestT, SendResultT]
+        req: RequestResponder[ReceiveRequestT, SendResultT]
         | ReceiveNotificationT
-        | Exception
-    ]:
-        return self._incoming_message_stream_reader
+        | Exception,
+    ) -> None:
+        """A generic handler for incoming messages. Overwritten by subclasses."""
+        pass
 
 ========================================
 File: "src/mcp/client/sse.py"
-Size: 6535 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 6755 bytes
+Last Modified: SystemTime { tv_sec: 1742279049, tv_nsec: 379065967 }
 ========================================
 import logging
 from contextlib import asynccontextmanager
@@ -4458,6 +4847,10 @@ async def sse_client(
                                             continue
 
                                         await read_stream_writer.send(message)
+                                    case _:
+                                        logger.warning(
+                                            f"Unknown SSE event: {sse.event}"
+                                        )
                         except Exception as exc:
                             logger.error(f"Error in sse_reader: {exc}")
                             await read_stream_writer.send(exc)
@@ -4503,8 +4896,8 @@ async def sse_client(
 
 ========================================
 File: "src/mcp/server/sse.py"
-Size: 6716 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 6721 bytes
+Last Modified: SystemTime { tv_sec: 1742279049, tv_nsec: 379065967 }
 ========================================
 """
 SSE Server Transport Module
@@ -4664,11 +5057,11 @@ class SseServerTransport:
             response = Response("Could not find session", status_code=404)
             return await response(scope, receive, send)
 
-        json = await request.json()
-        logger.debug(f"Received JSON: {json}")
+        body = await request.body()
+        logger.debug(f"Received JSON: {body}")
 
         try:
-            message = types.JSONRPCMessage.model_validate(json)
+            message = types.JSONRPCMessage.model_validate_json(body)
             logger.debug(f"Validated client message: {message}")
         except ValidationError as err:
             logger.error(f"Failed to parse message: {err}")
@@ -4681,165 +5074,6 @@ class SseServerTransport:
         response = Response("Accepted", status_code=202)
         await response(scope, receive, send)
         await writer.send(message)
-
-========================================
-File: "src/mcp/client/stdio.py"
-Size: 4686 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
-========================================
-import os
-import sys
-from contextlib import asynccontextmanager
-from typing import Literal
-
-import anyio
-import anyio.lowlevel
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from anyio.streams.text import TextReceiveStream
-from pydantic import BaseModel, Field
-
-import mcp.types as types
-
-# Environment variables to inherit by default
-DEFAULT_INHERITED_ENV_VARS = (
-    [
-        "APPDATA",
-        "HOMEDRIVE",
-        "HOMEPATH",
-        "LOCALAPPDATA",
-        "PATH",
-        "PROCESSOR_ARCHITECTURE",
-        "SYSTEMDRIVE",
-        "SYSTEMROOT",
-        "TEMP",
-        "USERNAME",
-        "USERPROFILE",
-    ]
-    if sys.platform == "win32"
-    else ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"]
-)
-
-
-def get_default_environment() -> dict[str, str]:
-    """
-    Returns a default environment object including only environment variables deemed
-    safe to inherit.
-    """
-    env: dict[str, str] = {}
-
-    for key in DEFAULT_INHERITED_ENV_VARS:
-        value = os.environ.get(key)
-        if value is None:
-            continue
-
-        if value.startswith("()"):
-            # Skip functions, which are a security risk
-            continue
-
-        env[key] = value
-
-    return env
-
-
-class StdioServerParameters(BaseModel):
-    command: str
-    """The executable to run to start the server."""
-
-    args: list[str] = Field(default_factory=list)
-    """Command line arguments to pass to the executable."""
-
-    env: dict[str, str] | None = None
-    """
-    The environment to use when spawning the process.
-
-    If not specified, the result of get_default_environment() will be used.
-    """
-
-    encoding: str = "utf-8"
-    """
-    The text encoding used when sending/receiving messages to the server
-
-    defaults to utf-8
-    """
-
-    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict"
-    """
-    The text encoding error handler.
-
-    See https://docs.python.org/3/library/codecs.html#codec-base-classes for
-    explanations of possible values
-    """
-
-
-@asynccontextmanager
-async def stdio_client(server: StdioServerParameters):
-    """
-    Client transport for stdio: this will connect to a server by spawning a
-    process and communicating with it over stdin/stdout.
-    """
-    read_stream: MemoryObjectReceiveStream[types.JSONRPCMessage | Exception]
-    read_stream_writer: MemoryObjectSendStream[types.JSONRPCMessage | Exception]
-
-    write_stream: MemoryObjectSendStream[types.JSONRPCMessage]
-    write_stream_reader: MemoryObjectReceiveStream[types.JSONRPCMessage]
-
-    read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
-    write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
-
-    process = await anyio.open_process(
-        [server.command, *server.args],
-        env=server.env if server.env is not None else get_default_environment(),
-        stderr=sys.stderr,
-    )
-
-    async def stdout_reader():
-        assert process.stdout, "Opened process is missing stdout"
-
-        try:
-            async with read_stream_writer:
-                buffer = ""
-                async for chunk in TextReceiveStream(
-                    process.stdout,
-                    encoding=server.encoding,
-                    errors=server.encoding_error_handler,
-                ):
-                    lines = (buffer + chunk).split("\n")
-                    buffer = lines.pop()
-
-                    for line in lines:
-                        try:
-                            message = types.JSONRPCMessage.model_validate_json(line)
-                        except Exception as exc:
-                            await read_stream_writer.send(exc)
-                            continue
-
-                        await read_stream_writer.send(message)
-        except anyio.ClosedResourceError:
-            await anyio.lowlevel.checkpoint()
-
-    async def stdin_writer():
-        assert process.stdin, "Opened process is missing stdin"
-
-        try:
-            async with write_stream_reader:
-                async for message in write_stream_reader:
-                    json = message.model_dump_json(by_alias=True, exclude_none=True)
-                    await process.stdin.send(
-                        (json + "\n").encode(
-                            encoding=server.encoding,
-                            errors=server.encoding_error_handler,
-                        )
-                    )
-        except anyio.ClosedResourceError:
-            await anyio.lowlevel.checkpoint()
-
-    async with (
-        anyio.create_task_group() as tg,
-        process,
-    ):
-        tg.start_soon(stdout_reader)
-        tg.start_soon(stdin_writer)
-        yield read_stream, write_stream
 
 ========================================
 File: "src/mcp/server/stdio.py"
@@ -4935,14 +5169,17 @@ async def stdio_server(
 
 ========================================
 File: "src/mcp/server/fastmcp/resources/templates.py"
-Size: 2867 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 2972 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
 ========================================
 """Resource template functionality."""
 
+from __future__ import annotations
+
 import inspect
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel, Field, TypeAdapter, validate_call
 
@@ -4960,18 +5197,20 @@ class ResourceTemplate(BaseModel):
     mime_type: str = Field(
         default="text/plain", description="MIME type of the resource content"
     )
-    fn: Callable = Field(exclude=True)
-    parameters: dict = Field(description="JSON schema for function parameters")
+    fn: Callable[..., Any] = Field(exclude=True)
+    parameters: dict[str, Any] = Field(
+        description="JSON schema for function parameters"
+    )
 
     @classmethod
     def from_function(
         cls,
-        fn: Callable,
+        fn: Callable[..., Any],
         uri_template: str,
         name: str | None = None,
         description: str | None = None,
         mime_type: str | None = None,
-    ) -> "ResourceTemplate":
+    ) -> ResourceTemplate:
         """Create a template from a function."""
         func_name = name or fn.__name__
         if func_name == "<lambda>":
@@ -5021,18 +5260,22 @@ class ResourceTemplate(BaseModel):
 
 ========================================
 File: "src/mcp/server/fastmcp/tools/tool_manager.py"
-Size: 1657 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 1884 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
+from __future__ import annotations as _annotations
+
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.server.fastmcp.utilities.logging import get_logger
+from mcp.shared.context import LifespanContextT
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp.server import Context
+    from mcp.server.session import ServerSessionT
 
 logger = get_logger(__name__)
 
@@ -5054,7 +5297,7 @@ class ToolManager:
 
     def add_tool(
         self,
-        fn: Callable,
+        fn: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
     ) -> Tool:
@@ -5069,7 +5312,10 @@ class ToolManager:
         return tool
 
     async def call_tool(
-        self, name: str, arguments: dict, context: "Context | None" = None
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        context: Context[ServerSessionT, LifespanContextT] | None = None,
     ) -> Any:
         """Call a tool by name with arguments."""
         tool = self.get_tool(name)
@@ -5331,13 +5577,13 @@ class Image:
 
 ========================================
 File: "src/mcp/types.py"
-Size: 32051 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 33758 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 879931872 }
 ========================================
+from collections.abc import Callable
 from typing import (
     Annotated,
     Any,
-    Callable,
     Generic,
     Literal,
     TypeAlias,
@@ -5378,7 +5624,7 @@ class RequestParams(BaseModel):
     class Meta(BaseModel):
         progressToken: ProgressToken | None = None
         """
-        If specified, the caller is requesting out-of-band progress notifications for
+        If specified, the caller requests out-of-band progress notifications for
         this request (as represented by notifications/progress). The value of this
         parameter is an opaque token that will be attached to any subsequent
         notifications. The receiver is not obligated to provide these notifications.
@@ -5400,8 +5646,10 @@ class NotificationParams(BaseModel):
     """
 
 
-RequestParamsT = TypeVar("RequestParamsT", bound=RequestParams)
-NotificationParamsT = TypeVar("NotificationParamsT", bound=NotificationParams)
+RequestParamsT = TypeVar("RequestParamsT", bound=RequestParams | dict[str, Any] | None)
+NotificationParamsT = TypeVar(
+    "NotificationParamsT", bound=NotificationParams | dict[str, Any] | None
+)
 MethodT = TypeVar("MethodT", bound=str)
 
 
@@ -5425,6 +5673,7 @@ class Notification(BaseModel, Generic[NotificationParamsT, MethodT]):
     """Base class for JSON-RPC notifications."""
 
     method: MethodT
+    params: NotificationParamsT
     model_config = ConfigDict(extra="allow")
 
 
@@ -5448,15 +5697,16 @@ class PaginatedResult(Result):
     """
 
 
-class JSONRPCRequest(Request):
+class JSONRPCRequest(Request[dict[str, Any] | None, str]):
     """A request that expects a response."""
 
     jsonrpc: Literal["2.0"]
     id: RequestId
+    method: str
     params: dict[str, Any] | None = None
 
 
-class JSONRPCNotification(Notification):
+class JSONRPCNotification(Notification[dict[str, Any] | None, str]):
     """A notification which does not expect a response."""
 
     jsonrpc: Literal["2.0"]
@@ -5612,7 +5862,7 @@ class InitializeRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class InitializeRequest(Request):
+class InitializeRequest(Request[InitializeRequestParams, Literal["initialize"]]):
     """
     This request is sent from the client to the server when it first connects, asking it
     to begin initialization.
@@ -5633,7 +5883,9 @@ class InitializeResult(Result):
     """Instructions describing how to use the server and its features."""
 
 
-class InitializedNotification(Notification):
+class InitializedNotification(
+    Notification[NotificationParams | None, Literal["notifications/initialized"]]
+):
     """
     This notification is sent from the client to the server after initialization has
     finished.
@@ -5643,7 +5895,7 @@ class InitializedNotification(Notification):
     params: NotificationParams | None = None
 
 
-class PingRequest(Request):
+class PingRequest(Request[RequestParams | None, Literal["ping"]]):
     """
     A ping, issued by either the server or the client, to check that the other party is
     still alive.
@@ -5671,7 +5923,9 @@ class ProgressNotificationParams(NotificationParams):
     model_config = ConfigDict(extra="allow")
 
 
-class ProgressNotification(Notification):
+class ProgressNotification(
+    Notification[ProgressNotificationParams, Literal["notifications/progress"]]
+):
     """
     An out-of-band notification used to inform the receiver of a progress update for a
     long-running request.
@@ -5681,7 +5935,9 @@ class ProgressNotification(Notification):
     params: ProgressNotificationParams
 
 
-class ListResourcesRequest(PaginatedRequest):
+class ListResourcesRequest(
+    PaginatedRequest[RequestParams | None, Literal["resources/list"]]
+):
     """Sent from the client to request a list of resources the server has."""
 
     method: Literal["resources/list"]
@@ -5743,7 +5999,9 @@ class ListResourcesResult(PaginatedResult):
     resources: list[Resource]
 
 
-class ListResourceTemplatesRequest(PaginatedRequest):
+class ListResourceTemplatesRequest(
+    PaginatedRequest[RequestParams | None, Literal["resources/templates/list"]]
+):
     """Sent from the client to request a list of resource templates the server has."""
 
     method: Literal["resources/templates/list"]
@@ -5767,7 +6025,9 @@ class ReadResourceRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class ReadResourceRequest(Request):
+class ReadResourceRequest(
+    Request[ReadResourceRequestParams, Literal["resources/read"]]
+):
     """Sent from the client to the server, to read a specific resource URI."""
 
     method: Literal["resources/read"]
@@ -5807,7 +6067,11 @@ class ReadResourceResult(Result):
     contents: list[TextResourceContents | BlobResourceContents]
 
 
-class ResourceListChangedNotification(Notification):
+class ResourceListChangedNotification(
+    Notification[
+        NotificationParams | None, Literal["notifications/resources/list_changed"]
+    ]
+):
     """
     An optional notification from the server to the client, informing it that the list
     of resources it can read from has changed.
@@ -5828,7 +6092,7 @@ class SubscribeRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class SubscribeRequest(Request):
+class SubscribeRequest(Request[SubscribeRequestParams, Literal["resources/subscribe"]]):
     """
     Sent from the client to request resources/updated notifications from the server
     whenever a particular resource changes.
@@ -5846,7 +6110,9 @@ class UnsubscribeRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class UnsubscribeRequest(Request):
+class UnsubscribeRequest(
+    Request[UnsubscribeRequestParams, Literal["resources/unsubscribe"]]
+):
     """
     Sent from the client to request cancellation of resources/updated notifications from
     the server.
@@ -5867,7 +6133,11 @@ class ResourceUpdatedNotificationParams(NotificationParams):
     model_config = ConfigDict(extra="allow")
 
 
-class ResourceUpdatedNotification(Notification):
+class ResourceUpdatedNotification(
+    Notification[
+        ResourceUpdatedNotificationParams, Literal["notifications/resources/updated"]
+    ]
+):
     """
     A notification from the server to the client, informing it that a resource has
     changed and may need to be read again.
@@ -5877,7 +6147,9 @@ class ResourceUpdatedNotification(Notification):
     params: ResourceUpdatedNotificationParams
 
 
-class ListPromptsRequest(PaginatedRequest):
+class ListPromptsRequest(
+    PaginatedRequest[RequestParams | None, Literal["prompts/list"]]
+):
     """Sent from the client to request a list of prompts and prompt templates."""
 
     method: Literal["prompts/list"]
@@ -5924,7 +6196,7 @@ class GetPromptRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class GetPromptRequest(Request):
+class GetPromptRequest(Request[GetPromptRequestParams, Literal["prompts/get"]]):
     """Used by the client to get a prompt provided by the server."""
 
     method: Literal["prompts/get"]
@@ -5994,7 +6266,11 @@ class GetPromptResult(Result):
     messages: list[PromptMessage]
 
 
-class PromptListChangedNotification(Notification):
+class PromptListChangedNotification(
+    Notification[
+        NotificationParams | None, Literal["notifications/prompts/list_changed"]
+    ]
+):
     """
     An optional notification from the server to the client, informing it that the list
     of prompts it offers has changed.
@@ -6004,7 +6280,7 @@ class PromptListChangedNotification(Notification):
     params: NotificationParams | None = None
 
 
-class ListToolsRequest(PaginatedRequest):
+class ListToolsRequest(PaginatedRequest[RequestParams | None, Literal["tools/list"]]):
     """Sent from the client to request a list of tools the server has."""
 
     method: Literal["tools/list"]
@@ -6037,7 +6313,7 @@ class CallToolRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class CallToolRequest(Request):
+class CallToolRequest(Request[CallToolRequestParams, Literal["tools/call"]]):
     """Used by the client to invoke a tool provided by the server."""
 
     method: Literal["tools/call"]
@@ -6051,7 +6327,9 @@ class CallToolResult(Result):
     isError: bool = False
 
 
-class ToolListChangedNotification(Notification):
+class ToolListChangedNotification(
+    Notification[NotificationParams | None, Literal["notifications/tools/list_changed"]]
+):
     """
     An optional notification from the server to the client, informing it that the list
     of tools it offers has changed.
@@ -6074,7 +6352,7 @@ class SetLevelRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class SetLevelRequest(Request):
+class SetLevelRequest(Request[SetLevelRequestParams, Literal["logging/setLevel"]]):
     """A request from the client to the server, to enable or adjust logging."""
 
     method: Literal["logging/setLevel"]
@@ -6096,7 +6374,9 @@ class LoggingMessageNotificationParams(NotificationParams):
     model_config = ConfigDict(extra="allow")
 
 
-class LoggingMessageNotification(Notification):
+class LoggingMessageNotification(
+    Notification[LoggingMessageNotificationParams, Literal["notifications/message"]]
+):
     """Notification of a log message passed from server to client."""
 
     method: Literal["notifications/message"]
@@ -6117,7 +6397,7 @@ class ModelHint(BaseModel):
 
 class ModelPreferences(BaseModel):
     """
-    The server's preferences for model selection, requested of the client during
+    The server's preferences for model selection, requested by the client during
     sampling.
 
     Because LLMs can vary along multiple dimensions, choosing the "best" model is
@@ -6191,7 +6471,9 @@ class CreateMessageRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class CreateMessageRequest(Request):
+class CreateMessageRequest(
+    Request[CreateMessageRequestParams, Literal["sampling/createMessage"]]
+):
     """A request from the server to sample an LLM via the client."""
 
     method: Literal["sampling/createMessage"]
@@ -6248,7 +6530,7 @@ class CompleteRequestParams(RequestParams):
     model_config = ConfigDict(extra="allow")
 
 
-class CompleteRequest(Request):
+class CompleteRequest(Request[CompleteRequestParams, Literal["completion/complete"]]):
     """A request from the client to the server, to ask for completion options."""
 
     method: Literal["completion/complete"]
@@ -6279,7 +6561,7 @@ class CompleteResult(Result):
     completion: Completion
 
 
-class ListRootsRequest(Request):
+class ListRootsRequest(Request[RequestParams | None, Literal["roots/list"]]):
     """
     Sent from the server to request a list of root URIs from the client. Roots allow
     servers to ask for specific directories or files to operate on. A common example
@@ -6322,7 +6604,9 @@ class ListRootsResult(Result):
     roots: list[Root]
 
 
-class RootsListChangedNotification(Notification):
+class RootsListChangedNotification(
+    Notification[NotificationParams | None, Literal["notifications/roots/list_changed"]]
+):
     """
     A notification from the client to the server, informing it that the list of
     roots has changed.
@@ -6346,9 +6630,11 @@ class CancelledNotificationParams(NotificationParams):
     model_config = ConfigDict(extra="allow")
 
 
-class CancelledNotification(Notification):
+class CancelledNotification(
+    Notification[CancelledNotificationParams, Literal["notifications/cancelled"]]
+):
     """
-    This notification can be sent by either side to indicate that it is cancelling a
+    This notification can be sent by either side to indicate that it is canceling a
     previously-issued request.
     """
 
@@ -6427,23 +6713,119 @@ class ServerResult(
 
 ========================================
 File: "src/mcp/shared/version.py"
-Size: 106 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 123 bytes
+Last Modified: SystemTime { tv_sec: 1742279049, tv_nsec: 379065967 }
 ========================================
 from mcp.types import LATEST_PROTOCOL_VERSION
 
-SUPPORTED_PROTOCOL_VERSIONS = [1, LATEST_PROTOCOL_VERSION]
+SUPPORTED_PROTOCOL_VERSIONS: tuple[int, str] = (1, LATEST_PROTOCOL_VERSION)
+
+========================================
+File: "src/mcp/client/websocket.py"
+Size: 3427 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
+========================================
+import json
+import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+import anyio
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from pydantic import ValidationError
+from websockets.asyncio.client import connect as ws_connect
+from websockets.typing import Subprotocol
+
+import mcp.types as types
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def websocket_client(
+    url: str,
+) -> AsyncGenerator[
+    tuple[
+        MemoryObjectReceiveStream[types.JSONRPCMessage | Exception],
+        MemoryObjectSendStream[types.JSONRPCMessage],
+    ],
+    None,
+]:
+    """
+    WebSocket client transport for MCP, symmetrical to the server version.
+
+    Connects to 'url' using the 'mcp' subprotocol, then yields:
+        (read_stream, write_stream)
+
+    - read_stream: As you read from this stream, you'll receive either valid
+      JSONRPCMessage objects or Exception objects (when validation fails).
+    - write_stream: Write JSONRPCMessage objects to this stream to send them
+      over the WebSocket to the server.
+    """
+
+    # Create two in-memory streams:
+    # - One for incoming messages (read_stream, written by ws_reader)
+    # - One for outgoing messages (write_stream, read by ws_writer)
+    read_stream: MemoryObjectReceiveStream[types.JSONRPCMessage | Exception]
+    read_stream_writer: MemoryObjectSendStream[types.JSONRPCMessage | Exception]
+    write_stream: MemoryObjectSendStream[types.JSONRPCMessage]
+    write_stream_reader: MemoryObjectReceiveStream[types.JSONRPCMessage]
+
+    read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
+    write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
+
+    # Connect using websockets, requesting the "mcp" subprotocol
+    async with ws_connect(url, subprotocols=[Subprotocol("mcp")]) as ws:
+
+        async def ws_reader():
+            """
+            Reads text messages from the WebSocket, parses them as JSON-RPC messages,
+            and sends them into read_stream_writer.
+            """
+            async with read_stream_writer:
+                async for raw_text in ws:
+                    try:
+                        message = types.JSONRPCMessage.model_validate_json(raw_text)
+                        await read_stream_writer.send(message)
+                    except ValidationError as exc:
+                        # If JSON parse or model validation fails, send the exception
+                        await read_stream_writer.send(exc)
+
+        async def ws_writer():
+            """
+            Reads JSON-RPC messages from write_stream_reader and
+            sends them to the server.
+            """
+            async with write_stream_reader:
+                async for message in write_stream_reader:
+                    # Convert to a dict, then to JSON
+                    msg_dict = message.model_dump(
+                        by_alias=True, mode="json", exclude_none=True
+                    )
+                    await ws.send(json.dumps(msg_dict))
+
+        async with anyio.create_task_group() as tg:
+            # Start reader and writer tasks
+            tg.start_soon(ws_reader)
+            tg.start_soon(ws_writer)
+
+            # Yield the receive/send streams
+            yield (read_stream, write_stream)
+
+            # Once the caller's 'async with' block exits, we shut down
+            tg.cancel_scope.cancel()
 
 ========================================
 File: "src/mcp/server/websocket.py"
-Size: 2225 bytes
-Last Modified: SystemTime { tv_sec: 1740722655, tv_nsec: 571457412 }
+Size: 2216 bytes
+Last Modified: SystemTime { tv_sec: 1742279049, tv_nsec: 379065967 }
 ========================================
 import logging
 from contextlib import asynccontextmanager
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from pydantic_core import ValidationError
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket
 
@@ -6474,10 +6856,10 @@ async def websocket_server(scope: Scope, receive: Receive, send: Send):
     async def ws_reader():
         try:
             async with read_stream_writer:
-                async for message in websocket.iter_json():
+                async for msg in websocket.iter_text():
                     try:
-                        client_message = types.JSONRPCMessage.model_validate(message)
-                    except Exception as exc:
+                        client_message = types.JSONRPCMessage.model_validate_json(msg)
+                    except ValidationError as exc:
                         await read_stream_writer.send(exc)
                         continue
 
@@ -6489,10 +6871,8 @@ async def websocket_server(scope: Scope, receive: Receive, send: Send):
         try:
             async with write_stream_reader:
                 async for message in write_stream_reader:
-                    obj = message.model_dump(
-                        by_alias=True, mode="json", exclude_none=True
-                    )
-                    await websocket.send_json(obj)
+                    obj = message.model_dump_json(by_alias=True, exclude_none=True)
+                    await websocket.send_text(obj)
         except anyio.ClosedResourceError:
             await websocket.close()
 
@@ -6500,5 +6880,120 @@ async def websocket_server(scope: Scope, receive: Receive, send: Send):
         tg.start_soon(ws_reader)
         tg.start_soon(ws_writer)
         yield (read_stream, write_stream)
+
+========================================
+File: "src/mcp/client/stdio/win32.py"
+Size: 3118 bytes
+Last Modified: SystemTime { tv_sec: 1743363371, tv_nsec: 869931341 }
+========================================
+"""
+Windows-specific functionality for stdio client operations.
+"""
+
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import TextIO
+
+import anyio
+from anyio.abc import Process
+
+
+def get_windows_executable_command(command: str) -> str:
+    """
+    Get the correct executable command normalized for Windows.
+
+    On Windows, commands might exist with specific extensions (.exe, .cmd, etc.)
+    that need to be located for proper execution.
+
+    Args:
+        command: Base command (e.g., 'uvx', 'npx')
+
+    Returns:
+        str: Windows-appropriate command path
+    """
+    try:
+        # First check if command exists in PATH as-is
+        if command_path := shutil.which(command):
+            return command_path
+
+        # Check for Windows-specific extensions
+        for ext in [".cmd", ".bat", ".exe", ".ps1"]:
+            ext_version = f"{command}{ext}"
+            if ext_path := shutil.which(ext_version):
+                return ext_path
+
+        # For regular commands or if we couldn't find special versions
+        return command
+    except OSError:
+        # Handle file system errors during path resolution
+        # (permissions, broken symlinks, etc.)
+        return command
+
+
+async def create_windows_process(
+    command: str,
+    args: list[str],
+    env: dict[str, str] | None = None,
+    errlog: TextIO = sys.stderr,
+    cwd: Path | str | None = None,
+):
+    """
+    Creates a subprocess in a Windows-compatible way.
+
+    Windows processes need special handling for console windows and
+    process creation flags.
+
+    Args:
+        command: The command to execute
+        args: Command line arguments
+        env: Environment variables
+        errlog: Where to send stderr output
+        cwd: Working directory for the process
+
+    Returns:
+        A process handle
+    """
+    try:
+        # Try with Windows-specific flags to hide console window
+        process = await anyio.open_process(
+            [command, *args],
+            env=env,
+            # Ensure we don't create console windows for each process
+            creationflags=subprocess.CREATE_NO_WINDOW  # type: ignore
+            if hasattr(subprocess, "CREATE_NO_WINDOW")
+            else 0,
+            stderr=errlog,
+            cwd=cwd,
+        )
+        return process
+    except Exception:
+        # Don't raise, let's try to create the process without creation flags
+        process = await anyio.open_process(
+            [command, *args], env=env, stderr=errlog, cwd=cwd
+        )
+        return process
+
+
+async def terminate_windows_process(process: Process):
+    """
+    Terminate a Windows process.
+
+    Note: On Windows, terminating a process with process.terminate() doesn't
+    always guarantee immediate process termination.
+    So we give it 2s to exit, or we call process.kill()
+    which sends a SIGKILL equivalent signal.
+
+    Args:
+        process: The process to terminate
+    """
+    try:
+        process.terminate()
+        with anyio.fail_after(2.0):
+            await process.wait()
+    except TimeoutError:
+        # Force kill if it doesn't terminate
+        process.kill()
 
 
