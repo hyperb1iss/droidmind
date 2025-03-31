@@ -12,6 +12,10 @@
 
 </div>
 
+<a href="https://glama.ai/mcp/servers/@hyperb1iss/droidmind">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@hyperb1iss/droidmind/badge" alt="DroidMind MCP server" />
+</a>
+
 DroidMind is a powerful bridge between AI assistants and Android devices, enabling control, debugging, and system analysis through natural language. By implementing the Model Context Protocol (MCP), DroidMind allows AI models to directly interact with Android devices via ADB in a secure, structured way. When used as part of an agentic coding workflow, DroidMind can enable your assistant to build and debug with your device directly in the loop.
 
 ## 💫 Features
