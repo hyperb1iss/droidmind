@@ -17,19 +17,19 @@ classifiers = [
 # Dependencies organized by category
 dependencies = [
     # Core MCP protocol
-    "mcp[cli]>=1.6.0",
+    "mcp[cli]>=1.8.1",
     # UI and display
     "rich>=14.0.0",
     # Networking and HTTP
     "httpx>=0.28.1",
     # Server components
-    "sse-starlette>=2.2.1",
+    "sse-starlette>=2.3.5",
     "starlette>=0.46.1",
-    "uvicorn>=0.34.0",
+    "uvicorn>=0.34.2",
     "rich-gradient>=0.2.0",
     # Async file operations
     "aiofiles>=23.2.1",
-    "pillow>=11.1.0",
+    "pillow>=11.2.1",
 ]
 
 [dependency-groups]
@@ -37,12 +37,15 @@ dev = [
     # Testing
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
-    "pytest-cov>=6.0.0",
+    "pytest-cov>=6.1.1",
     # Linting and type checking
     "mypy>=1.0.0",
-    "pylint>=3.3.6",
-    "ruff>=0.11.2",
+    "pylint>=3.3.7",
+    "ruff>=0.11.9",
     "types-aiofiles>=24.1.0.20250326",
+    "wcwidth>=0.2.13",
+    "tomlkit>=0.13.2",
+    "colorama>=0.4.6",
 ]
 sse = ["uvicorn>=0.27.0", "starlette>=0.46.0"]
 
@@ -136,8 +139,8 @@ warn_unreachable = true
 [tool.ruff]
 # General settings
 line-length = 120
-target-version = "py313"
-src = ["droidmind", "tests"]
+target-version = "py312"
+src = ["droidmind", "tests", "scripts"]
 extend-exclude = [".venv", "docs"]
 
 [tool.ruff.lint]
@@ -235,6 +238,7 @@ section-order = [
 "__init__.py" = ["F401", "E402"]
 
 # Allow catching blind exceptions in prompts, resources, and tools 
+"droidmind/adb.py" = ["BLE001", "ARG001"]
 "droidmind/prompts.py" = ["BLE001", "ARG001"]
 "droidmind/resources/**/*.py" = ["BLE001", "ARG001"]
 "droidmind/tools/**/*.py" = ["BLE001", "ARG001"]

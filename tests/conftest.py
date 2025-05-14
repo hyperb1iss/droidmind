@@ -8,7 +8,7 @@ from droidmind.devices import DeviceManager, set_device_manager
 
 
 @pytest.fixture(scope="session", autouse=True)
-def initialize_device_manager():
+def _initialize_device_manager():
     """Initialize the DeviceManager singleton before tests run.
 
     This fixture runs automatically at the start of the test session and
