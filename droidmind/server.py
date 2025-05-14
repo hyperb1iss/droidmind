@@ -21,6 +21,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.routing import Mount, Route
+from starlette.types import ASGIApp, Receive, Scope, Send
 import uvicorn
 
 # Annotated modules with MCP prompts and tools
@@ -105,10 +106,10 @@ def run_sse_server(config: dict[str, Any]) -> None:
 
     # Define middleware to suppress 'NoneType object is not callable' errors during shutdown
     class SuppressNoneTypeErrorMiddleware:
-        def __init__(self, app: Any) -> None:
+        def __init__(self, app: ASGIApp) -> None:
             self.app = app
 
-        async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
             try:
                 await self.app(scope, receive, send)
             except TypeError as e:

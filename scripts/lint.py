@@ -26,7 +26,7 @@ def print_header(message: str) -> None:
 
 
 def run_lint() -> bool:
-    """Run linting checks on the project using ruff, pylint, and mypy.
+    """Run linting checks on the project using ruff, pylint, and pyright.
 
     Returns:
         bool: True if all checks passed, False otherwise
@@ -44,8 +44,8 @@ def run_lint() -> bool:
             "Secondary linter for complex checks",
         ),
         (
-            "MyPy",
-            ["uv", "run", "mypy", "droidmind"],
+            "Pyright",
+            ["uv", "run", "pyright"],
             "Type checking verification",
         ),
     ]

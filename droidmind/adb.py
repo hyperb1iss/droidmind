@@ -82,6 +82,8 @@ class ADBWrapper:
                 stderr=asyncio.subprocess.PIPE,
             )
 
+            stdout_bytes: bytes = b""
+            stderr_bytes: bytes = b""
             async with AsyncExitStack() as stack:
                 if timeout_seconds is not None:
                     # Use asyncio.timeout() for Python 3.11+

@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-Apache_2.0-FF00FF.svg?style=for-the-badge)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active_development-39FF14.svg?style=for-the-badge)](docs/plan.md)
 [![Code Style](https://img.shields.io/badge/code_style-ruff-00FFFF.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
-[![Type Check](https://img.shields.io/badge/type_check-mypy-FFBF00.svg?style=for-the-badge)](https://mypy.readthedocs.io/en/stable/)
+[![Type Check](https://img.shields.io/badge/type_check-pyright-FFBF00.svg?style=for-the-badge)](https://github.com/microsoft/pyright)
 
 **Control Android devices with AI through the Model Context Protocol**
 
@@ -292,7 +292,7 @@ pytest
 ruff check .
 
 # Run type checking
-mypy .
+pyright
 ```
 
 ## 🤝 Contributing

@@ -13,6 +13,7 @@ import sys
 from colorama import Style, init
 from rich.console import Console
 import tomlkit
+from tomlkit.items import Table
 from wcwidth import wcswidth
 
 # Initialize colorama for cross-platform colored output
@@ -194,19 +195,34 @@ def check_uncommitted_changes() -> None:
 def get_current_version() -> str:
     """Get the current version from pyproject.toml."""
     with open("pyproject.toml", encoding="utf-8") as f:
-        pyproject = tomlkit.parse(f.read())
-    return str(pyproject["project"]["version"])
+        pyproject_doc = tomlkit.parse(f.read())
+
+    project_item = pyproject_doc.get("project")
+    if not isinstance(project_item, Table):
+        raise TypeError("pyproject.toml['project'] is not a Table")
+
+    version_item = project_item.get("version")
+    if version_item is None:
+        raise KeyError("pyproject.toml['project']['version'] not found")
+
+    return str(version_item)
 
 
 def update_version(new_version: str) -> None:
     """Update the version in pyproject.toml."""
     with open("pyproject.toml", encoding="utf-8") as f:
-        pyproject = tomlkit.parse(f.read())
+        pyproject_doc = tomlkit.parse(f.read())
 
-    pyproject["project"]["version"] = new_version
+    project_item = pyproject_doc.get("project")
+    if not isinstance(project_item, Table):
+        # This should ideally not happen if pyproject.toml is valid
+        print_error("Invalid pyproject.toml: [project] table not found or not a table.")
+        sys.exit(1)
+
+    project_item["version"] = new_version
 
     with open("pyproject.toml", "w", encoding="utf-8") as f:
-        f.write(tomlkit.dumps(pyproject))
+        f.write(tomlkit.dumps(pyproject_doc))
 
     print_success(f"Updated version in pyproject.toml to {new_version}")
 
