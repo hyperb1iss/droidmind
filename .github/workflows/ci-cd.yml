@@ -24,9 +24,7 @@ jobs:
           cache-dependency-path: "pyproject.toml"
 
       - name: 🛠️ Set up uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.6.3"
+        uses: astral-sh/setup-uv@v6
 
       - name: 📦 Install dependencies
         run: uv sync
@@ -83,7 +81,7 @@ jobs:
           python-version: "3.13"
 
       - name: 🛠️ Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
 
       - name: 📦 Build package
         run: |
