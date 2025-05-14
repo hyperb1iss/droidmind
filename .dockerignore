@@ -1,0 +1,53 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project Folders
+.idea/
+.vscode/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dm_mypy.json
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# UV
+.uv_cache/ 

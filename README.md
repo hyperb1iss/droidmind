@@ -29,17 +29,125 @@ DroidMind is a powerful bridge between AI assistants and Android devices, enabli
 
 ## 🚀 Installation
 
+Ensure you have Python 3.13+ and `uv` installed.
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone https://github.com/hyperbliss/droidmind.git
+    cd droidmind
+    ```
+
+2.  **Create a virtual environment and install dependencies:**
+    ```bash
+    uv venv
+    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+    uv pip install -e .[sse] # For SSE transport, or .[stdio] for stdio
+    ```
+
+## Running with Docker
+
+DroidMind can also be run using Docker. This is useful for creating a consistent environment and simplifying deployment.
+
+### Building the Docker Image
+
+To build the DroidMind Docker image, navigate to the project's root directory (where the `Dockerfile` is located) and run:
+
 ```bash
-# Clone the repository
-git clone https://github.com/hyperbliss/droidmind.git
-cd droidmind
+docker build -t droidmind:latest .
+```
 
-# Set up a virtual environment with UV
-uv venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+### Running the Docker Container
 
-# Install dependencies with UV
-uv sync
+Once the image is built, you can run DroidMind as a container.
+
+**Default (Stdio Transport - Interactive CLI):**
+
+By default, the container runs DroidMind with `stdio` transport, suitable for interactive command-line use.
+
+```bash
+docker run -it --rm --name droidmind-cli droidmind:latest
+```
+
+- `-it`: Run in interactive mode with a pseudo-TTY.
+- `--rm`: Automatically remove the container when it exits.
+- `--name droidmind-cli`: Assign a name to the container.
+
+If you want to pass specific arguments to `droidmind` in `stdio` mode:
+
+```bash
+docker run -it --rm --name droidmind-cli droidmind:latest droidmind --your-options
+```
+
+**Using SSE Transport (e.g., for AI Assistant Integration):**
+
+To run DroidMind with SSE transport (e.g., for connecting with AI assistants like Claude or Cursor), you can use the `DROIDMIND_TRANSPORT` environment variable or override the command.
+
+Using Environment Variable:
+
+```bash
+docker run -d -p 4256:4256 -e DROIDMIND_TRANSPORT=sse --name droidmind-server droidmind:latest
+```
+
+- `-d`: Run in detached mode (in the background).
+- `-p 4256:4256`: Map port 4256 of the container to port 4256 on your host.
+- `-e DROIDMIND_TRANSPORT=sse`: Sets the transport mode to SSE. The entrypoint script will automatically use `--host 0.0.0.0` and `--port 4256`.
+- `--name droidmind-server`: Assign a name to the container.
+
+Overriding Command for SSE:
+
+```bash
+docker run -d -p 4256:4256 --name droidmind-server droidmind:latest droidmind --transport sse --host 0.0.0.0 --port 4256
+```
+
+This explicitly tells `droidmind` to run with SSE, host, and port settings.
+
+**Connecting to ADB Devices:**
+
+For DroidMind in Docker to control Android devices, the container needs access to an ADB server that can see your devices.
+
+- **Networked ADB Devices (Recommended for Docker):**
+  If your Android devices are connected via TCP/IP (e.g., after running `adb connect <device_ip>:5555` on your host or ensuring they are on the same network and ADB over network is enabled on the device), the DroidMind container should be able to connect to them directly using the `connect_device` tool, provided the container's network configuration allows outbound connections to your devices' IPs.
+
+- **USB-Connected ADB Devices:**
+  This is more complex with Docker and highly platform-dependent.
+
+  - **Host ADB Server:** One common approach is to configure the Docker container to use the ADB server running on your _host_ machine. This might involve:
+    - Sharing the host's network: `docker run --network host ...` (Linux only).
+    - Mounting the ADB server socket: `docker run -v /tmp/adb.sock:/tmp/adb.sock ...` (path may vary).
+    - Setting the `ADB_SERVER_SOCKET` environment variable in the container.
+  - **ADB Server inside Container:** Another option is to run an ADB server _inside_ the container and pass through the USB devices from the host. This often requires privileged mode and specific volume mounts (e.g., `docker run --privileged -v /dev/bus/usb:/dev/bus/usb ...`).
+
+  The exact commands for USB device access will vary based on your operating system (Linux, macOS, Windows) and Docker setup. Please refer to Docker and ADB documentation for advanced configurations.
+
+**Customizing the Run Command:**
+
+You can append arguments to `docker run droidmind:latest ...` to customize the `droidmind` execution. The `entrypoint.sh` script will manage the `--transport` argument based on the `DROIDMIND_TRANSPORT` environment variable if you don't specify `--transport` in your command arguments.
+
+Example: Run with SSE on a different port and enable debug mode, letting the env var handle transport:
+
+```bash
+docker run -d -p 8000:8000 -e DROIDMIND_TRANSPORT=sse --name droidmind-custom droidmind:latest droidmind --port 8000 --debug
+```
+
+Example: Explicitly specify all options, including transport:
+
+```bash
+docker run -d -p 8000:8000 --name droidmind-custom droidmind:latest droidmind --transport sse --host 0.0.0.0 --port 8000 --debug
+```
+
+**Viewing Logs:**
+
+If you're running in detached mode (`-d`), you can view the server logs using:
+
+```bash
+docker logs droidmind-server
+```
+
+Or follow them in real-time:
+
+```bash
+docker logs -f droidmind-server
 ```
 
 ## 📋 Prerequisites
