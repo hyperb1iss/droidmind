@@ -4,6 +4,7 @@
 # ruff: noqa: E501, T201, S603, S607, BLE001
 # pylint: disable=broad-exception-caught
 
+import collections.abc
 import os
 import re
 import shutil
@@ -13,7 +14,7 @@ import sys
 from colorama import Style, init
 from rich.console import Console
 import tomlkit
-from tomlkit.items import Table
+from tomlkit import exceptions as tomlkit_exceptions
 from wcwidth import wcswidth
 
 # Initialize colorama for cross-platform colored output
@@ -73,6 +74,30 @@ def print_success(message: str) -> None:
 def print_warning(message: str) -> None:
     """Print a warning message with a specific color."""
     print_colored(f"⚠️  {message}", COLOR_WARNING)
+
+
+def _load_pyproject_data() -> tuple[tomlkit.TOMLDocument, collections.abc.MutableMapping]:
+    """Loads and validates the pyproject.toml file, returning the document and project table."""
+    try:
+        with open("pyproject.toml", encoding="utf-8") as f:
+            pyproject_doc = tomlkit.parse(f.read())
+    except FileNotFoundError:
+        print_error("pyproject.toml not found. Please ensure it exists in the project root directory.")
+        sys.exit(1)
+    except tomlkit_exceptions.TOMLKitError as e:
+        print_error(f"Error parsing pyproject.toml: {e!s}")
+        sys.exit(1)
+
+    project_item = pyproject_doc.get("project")
+    if project_item is None:
+        print_error("Invalid pyproject.toml: The [project] table is missing.")
+        sys.exit(1)
+    if not isinstance(project_item, collections.abc.MutableMapping):
+        print_error(
+            f"Invalid pyproject.toml: The 'project' key is of type '{type(project_item).__name__}', but it should be a modifiable mapping (like a TOML table)."
+        )
+        sys.exit(1)
+    return pyproject_doc, project_item
 
 
 def generate_gradient(colors: list[tuple[int, int, int]], steps: int) -> list[str]:
@@ -194,32 +219,25 @@ def check_uncommitted_changes() -> None:
 
 def get_current_version() -> str:
     """Get the current version from pyproject.toml."""
-    with open("pyproject.toml", encoding="utf-8") as f:
-        pyproject_doc = tomlkit.parse(f.read())
+    _pyproject_doc, project_table = _load_pyproject_data()
 
-    project_item = pyproject_doc.get("project")
-    if not isinstance(project_item, Table):
-        raise TypeError("pyproject.toml['project'] is not a Table")
-
-    version_item = project_item.get("version")
+    version_item = project_table.get("version")
     if version_item is None:
-        raise KeyError("pyproject.toml['project']['version'] not found")
+        print_error("Invalid pyproject.toml: The 'version' key is missing from the [project] table.")
+        sys.exit(1)
 
+    if not isinstance(version_item, str):
+        print_warning(
+            f"Warning: 'version' in pyproject.toml is of type '{type(version_item).__name__}', not a string. Attempting to use it as a string."
+        )
     return str(version_item)
 
 
 def update_version(new_version: str) -> None:
     """Update the version in pyproject.toml."""
-    with open("pyproject.toml", encoding="utf-8") as f:
-        pyproject_doc = tomlkit.parse(f.read())
+    pyproject_doc, project_table = _load_pyproject_data()
 
-    project_item = pyproject_doc.get("project")
-    if not isinstance(project_item, Table):
-        # This should ideally not happen if pyproject.toml is valid
-        print_error("Invalid pyproject.toml: [project] table not found or not a table.")
-        sys.exit(1)
-
-    project_item["version"] = new_version
+    project_table["version"] = new_version
 
     with open("pyproject.toml", "w", encoding="utf-8") as f:
         f.write(tomlkit.dumps(pyproject_doc))
