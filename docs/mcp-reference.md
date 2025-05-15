@@ -142,26 +142,38 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### UI Automation
 
+- **`android-ui`**: Performs various UI interaction operations on an Android device.
+  - `serial`: Device serial number.
+  - `action`: Specifies the UI operation. One of:
+    - `tap`: Simulates a tap at specified screen coordinates.
+        - Requires: `x`, `y` (coordinates to tap).
+    - `swipe`: Simulates a swipe gesture.
+        - Requires: `start_x`, `start_y`, `end_x`, `end_y` (swipe coordinates).
+        - Optional: `duration_ms` (swipe duration, default 300ms).
+    - `input_text`: Inputs text into the currently focused field.
+        - Requires: `text` (text to input).
+    - `press_key`: Simulates pressing an Android keycode.
+        - Requires: `keycode` (Android keycode, e.g., 3 for HOME, 4 for BACK).
+    - `start_intent`: Starts an app activity using an intent.
+        - Requires: `package` (package name), `activity` (activity name, relative or fully qualified).
+        - Optional: `extras` (dictionary of intent extras).
+  - `ctx`: MCP Context.
+  - `x` (optional): X coordinate for `tap`.
+  - `y` (optional): Y coordinate for `tap`.
+  - `start_x` (optional): Starting X for `swipe`.
+  - `start_y` (optional): Starting Y for `swipe`.
+  - `end_x` (optional): Ending X for `swipe`.
+  - `end_y` (optional): Ending Y for `swipe`.
+  - `duration_ms` (optional): Duration for `swipe`.
+  - `text` (optional): Text for `input_text`.
+  - `keycode` (optional): Keycode for `press_key`.
+  - `package` (optional): Package name for `start_intent`.
+  - `activity` (optional): Activity name for `start_intent`.
+  - `extras` (optional): Dictionary for `start_intent`.
+  - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/ui.py` for the most detailed argument requirements for each `action`.
+
 - **`screenshot`**: Captures a screenshot from the device.
   - `serial`: Device serial number.
   - `quality` (optional): JPEG quality (1-100, default 75).
-- **`tap`**: Simulates a tap at specified screen coordinates.
-  - `serial`: Device serial number.
-  - `x`, `y`: Coordinates to tap.
-- **`swipe`**: Simulates a swipe gesture.
-  - `serial`: Device serial number.
-  - `start_x`, `start_y`, `end_x`, `end_y`: Swipe coordinates.
-  - `duration_ms` (optional): Swipe duration (default 300ms).
-- **`input_text`**: Inputs text into the currently focused field.
-  - `serial`: Device serial number.
-  - `text`: Text to input.
-- **`press_key`**: Simulates pressing an Android keycode.
-  - `serial`: Device serial number.
-  - `keycode`: Android keycode (e.g., 3 for HOME, 4 for BACK).
-- **`start_intent`**: Starts an app activity using an intent.
-  - `serial`: Device serial number.
-  - `package`: Package name.
-  - `activity`: Activity name (relative or fully qualified).
-  - `extras` (optional): Dictionary of intent extras.
 
 This reference provides a quick lookup for the tools DroidMind offers. Your AI assistant will use these to fulfill your requests for interacting with your Android devices.

@@ -31,27 +31,19 @@ from droidmind.tools.shell import (
     shell_command,
 )
 from droidmind.tools.ui import (
-    input_text,
-    press_key,
-    start_intent,
-    swipe,
-    tap,
+    android_ui,
 )
 
 # Re-export get_device_manager for backward compatibility
 __all__ = [
     "android_device",
     "android_log",
+    "android_ui",
     "app_operations",
     "capture_bugreport",
     "dump_heap",
     "file_operations",
     "get_device_manager",
-    "input_text",
-    "press_key",
     "screenshot",
     "shell_command",
-    "start_intent",
-    "swipe",
-    "tap",
 ]

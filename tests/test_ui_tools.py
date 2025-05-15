@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from droidmind.devices import Device
-from droidmind.tools.ui import input_text, press_key, start_intent, swipe, tap
+from droidmind.tools.ui import UIAction, android_ui
 
 
 @pytest.fixture
@@ -42,8 +42,8 @@ def mock_device_manager(mock_device):
 
 
 async def test_tap(mock_context, mock_device, mock_device_manager):
-    """Test the tap tool."""
-    result = await tap("test_serial", 100, 200, mock_context)
+    """Test the tap action of the android_ui tool."""
+    result = await android_ui(ctx=mock_context, serial="test_serial", action=UIAction.TAP, x=100, y=200)
 
     # Assert context methods were called
     mock_context.info.assert_called()
@@ -56,8 +56,17 @@ async def test_tap(mock_context, mock_device, mock_device_manager):
 
 
 async def test_swipe(mock_context, mock_device, mock_device_manager):
-    """Test the swipe tool."""
-    result = await swipe("test_serial", 100, 200, 300, 400, mock_context, 500)
+    """Test the swipe action of the android_ui tool."""
+    result = await android_ui(
+        ctx=mock_context,
+        serial="test_serial",
+        action=UIAction.SWIPE,
+        start_x=100,
+        start_y=200,
+        end_x=300,
+        end_y=400,
+        duration_ms=500,
+    )
 
     # Assert context methods were called
     mock_context.info.assert_called()
@@ -70,8 +79,8 @@ async def test_swipe(mock_context, mock_device, mock_device_manager):
 
 
 async def test_input_text(mock_context, mock_device, mock_device_manager):
-    """Test the input_text tool."""
-    result = await input_text("test_serial", "Hello World", mock_context)
+    """Test the input_text action of the android_ui tool."""
+    result = await android_ui(ctx=mock_context, serial="test_serial", action=UIAction.INPUT_TEXT, text="Hello World")
 
     # Assert context methods were called
     mock_context.info.assert_called()
@@ -84,8 +93,8 @@ async def test_input_text(mock_context, mock_device, mock_device_manager):
 
 
 async def test_press_key(mock_context, mock_device, mock_device_manager):
-    """Test the press_key tool."""
-    result = await press_key("test_serial", 4, mock_context)  # BACK key
+    """Test the press_key action of the android_ui tool."""
+    result = await android_ui(ctx=mock_context, serial="test_serial", action=UIAction.PRESS_KEY, keycode=4)  # BACK key
 
     # Assert context methods were called
     mock_context.info.assert_called()
@@ -98,9 +107,14 @@ async def test_press_key(mock_context, mock_device, mock_device_manager):
 
 
 async def test_start_intent(mock_context, mock_device, mock_device_manager):
-    """Test the start_intent tool."""
-    result = await start_intent(
-        "test_serial", "com.android.settings", ".Settings", mock_context, {"extra_key": "extra_value"}
+    """Test the start_intent action of the android_ui tool."""
+    result = await android_ui(
+        ctx=mock_context,
+        serial="test_serial",
+        action=UIAction.START_INTENT,
+        package="com.android.settings",
+        activity=".Settings",
+        extras={"extra_key": "extra_value"},
     )
 
     # Assert context methods were called
@@ -116,11 +130,11 @@ async def test_start_intent(mock_context, mock_device, mock_device_manager):
 
 
 async def test_device_not_found(mock_context, mock_device_manager):
-    """Test error handling when device is not found."""
+    """Test error handling when device is not found for an android_ui action (e.g., tap)."""
     # Simulate device not found
     mock_device_manager.get_device = AsyncMock(return_value=None)
 
-    result = await tap("nonexistent_serial", 100, 200, mock_context)
+    result = await android_ui(ctx=mock_context, serial="nonexistent_serial", action=UIAction.TAP, x=100, y=200)
 
     # Assert error was logged
     mock_context.error.assert_called_once()
