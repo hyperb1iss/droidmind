@@ -87,40 +87,41 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### Application Management
 
-- **`list_packages`**: Lists installed application packages.
+- **`app-operations`**: Performs various application management operations on an Android device.
   - `serial`: Device serial number.
-  - `include_system_apps` (optional): Default `False`.
-- **`install_app`**: Installs an APK on the device.
-  - `serial`: Device serial number.
-  - `apk_path`: Local path to the APK on the DroidMind server machine.
-  - `reinstall` (optional): Default `False`.
-  - `grant_permissions` (optional): Default `True`.
-- **`uninstall_app`**: Uninstalls an application from the device.
-  - `serial`: Device serial number.
-  - `package`: Package name to uninstall.
-  - `keep_data` (optional): Default `False`.
-- **`start_app`**: Starts an application.
-  - `serial`: Device serial number.
-  - `package`: Package name.
-  - `activity` (optional): Specific activity to launch.
-- **`stop_app`**: Force stops an application.
-  - `serial`: Device serial number.
-  - `package`: Package name.
-- **`clear_app_data`**: Clears data and cache for an application.
-  - `serial`: Device serial number.
-  - `package`: Package name.
-- **`get_app_info`**: Retrieves detailed information about an installed application.
-  - `serial`: Device serial number.
-  - `package`: Package name.
-- **`get_app_manifest`**: Gets the AndroidManifest.xml contents for an app.
-  - `serial`: Device serial number.
-  - `package`: Package name.
-- **`get_app_permissions`**: Gets permissions used by an app, including runtime status.
-  - `serial`: Device serial number.
-  - `package`: Package name.
-- **`get_app_activities`**: Gets the activities defined in an app, including intent filters and main activity.
-  - `serial`: Device serial number.
-  - `package`: Package name.
+  - `action`: Specifies the operation. One of:
+    - `install_app`: Installs an APK on the device.
+        - Requires: `apk_path` (local path to APK on DroidMind server).
+        - Optional: `reinstall` (default `False`), `grant_permissions` (default `True`).
+    - `uninstall_app`: Uninstalls an application from the device.
+        - Requires: `package` (package name).
+        - Optional: `keep_data` (default `False`).
+    - `start_app`: Starts an application.
+        - Requires: `package` (package name).
+        - Optional: `activity` (specific activity to launch).
+    - `stop_app`: Force stops an application.
+        - Requires: `package` (package name).
+    - `clear_app_data`: Clears data and cache for an application.
+        - Requires: `package` (package name).
+    - `list_packages`: Lists installed application packages.
+        - Optional: `include_system_apps` (default `False`).
+    - `get_app_manifest`: Gets the AndroidManifest.xml contents for an app.
+        - Requires: `package` (package name).
+    - `get_app_permissions`: Gets permissions used by an app, including runtime status.
+        - Requires: `package` (package name).
+    - `get_app_activities`: Gets the activities defined in an app, including intent filters and main activity.
+        - Requires: `package` (package name).
+    - `get_app_info`: Retrieves detailed information about an installed application.
+        - Requires: `package` (package name).
+  - `ctx`: MCP Context.
+  - `package` (optional): Package name. See specific `action` for usage.
+  - `apk_path` (optional): Local path to APK for `install_app`.
+  - `reinstall` (optional): For `install_app`.
+  - `grant_permissions` (optional): For `install_app`.
+  - `keep_data` (optional): For `uninstall_app`.
+  - `activity` (optional): Specific activity for `start_app`.
+  - `include_system_apps` (optional): For `list_packages`.
+  - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/app_management.py` for the most detailed argument requirements for each `action`.
 
 ### Shell Command Execution
 

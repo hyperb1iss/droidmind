@@ -5,14 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from droidmind.devices import Device, DeviceManager
-from droidmind.tools.app_management import (
-    clear_app_data,
-    get_app_manifest,
-    list_packages,
-    start_app,
-    stop_app,
-    uninstall_app,
-)
+from droidmind.tools.app_management import AppAction, app_operations
 from droidmind.tools.logs import app_logs
 
 
@@ -86,9 +79,15 @@ def mock_context():
 
 @pytest.mark.asyncio
 async def test_uninstall_app(mock_device_manager, mock_context):
-    """Test the uninstall_app tool."""
+    """Test the uninstall_app action via app_operations."""
     with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
-        result = await uninstall_app("test_device", "com.example.app", mock_context)
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.UNINSTALL_APP,
+            package="com.example.app",
+            ctx=mock_context,
+            keep_data=False,
+        )
 
     assert "Successfully uninstalled" in result
     mock_device_manager.get_device.assert_called_once_with("test_device")
@@ -98,9 +97,14 @@ async def test_uninstall_app(mock_device_manager, mock_context):
 
 @pytest.mark.asyncio
 async def test_start_app(mock_device_manager, mock_context):
-    """Test the start_app tool."""
+    """Test the start_app action via app_operations."""
     with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
-        result = await start_app("test_device", "com.example.app", mock_context)
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.START_APP,
+            package="com.example.app",
+            ctx=mock_context,
+        )
 
     assert "Started package" in result
     mock_device_manager.get_device.assert_called_once_with("test_device")
@@ -110,9 +114,14 @@ async def test_start_app(mock_device_manager, mock_context):
 
 @pytest.mark.asyncio
 async def test_stop_app(mock_device_manager, mock_context):
-    """Test the stop_app tool."""
+    """Test the stop_app action via app_operations."""
     with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
-        result = await stop_app("test_device", "com.example.app", mock_context)
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.STOP_APP,
+            package="com.example.app",
+            ctx=mock_context,
+        )
 
     assert "Stopped package" in result
     mock_device_manager.get_device.assert_called_once_with("test_device")
@@ -122,9 +131,14 @@ async def test_stop_app(mock_device_manager, mock_context):
 
 @pytest.mark.asyncio
 async def test_clear_app_data(mock_device_manager, mock_context):
-    """Test the clear_app_data tool."""
+    """Test the clear_app_data action via app_operations."""
     with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
-        result = await clear_app_data("test_device", "com.example.app", mock_context)
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.CLEAR_APP_DATA,
+            package="com.example.app",
+            ctx=mock_context,
+        )
 
     assert "Successfully" in result
     mock_device_manager.get_device.assert_called_once_with("test_device")
@@ -134,9 +148,14 @@ async def test_clear_app_data(mock_device_manager, mock_context):
 
 @pytest.mark.asyncio
 async def test_list_packages(mock_device_manager, mock_context):
-    """Test the list_packages tool."""
+    """Test the list_packages action via app_operations."""
     with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
-        result = await list_packages("test_device", mock_context)
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.LIST_PACKAGES,
+            ctx=mock_context,
+            include_system_apps=False,
+        )
 
     assert "Installed Packages" in result
     assert "com.example.app" in result
@@ -147,9 +166,14 @@ async def test_list_packages(mock_device_manager, mock_context):
 
 @pytest.mark.asyncio
 async def test_get_app_manifest(mock_device_manager, mock_context):
-    """Test the get_app_manifest tool."""
+    """Test the get_app_manifest action via app_operations."""
     with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
-        result = await get_app_manifest("test_device", "com.example.app", mock_context)
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.GET_APP_MANIFEST,
+            package="com.example.app",
+            ctx=mock_context,
+        )
 
     assert "App Manifest for" in result
     mock_device_manager.get_device.assert_called_once_with("test_device")
@@ -168,3 +192,28 @@ async def test_app_logs_tool(mock_device_manager, mock_context):
     mock_device_manager.get_device.assert_called_once_with("test_device")
     mock_device = mock_device_manager.get_device.return_value
     mock_device.run_shell.assert_any_call("ps -A | grep com.example.app")
+
+
+@pytest.mark.asyncio
+async def test_install_app(mock_device_manager, mock_context):
+    """Test the install_app action via app_operations."""
+    mock_device = mock_device_manager.get_device.return_value
+    mock_device.install_app.return_value = "Success"
+    apk_path = "/fake/path/to/app.apk"
+
+    with (
+        patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager),
+        patch("os.path.isfile", return_value=True),
+    ):
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.INSTALL_APP,
+            apk_path=apk_path,
+            reinstall=False,
+            grant_permissions=True,
+            ctx=mock_context,
+        )
+
+    assert "Successfully installed APK" in result
+    mock_device_manager.get_device.assert_called_once_with("test_device")
+    mock_device.install_app.assert_called_once_with(apk_path, False, True)

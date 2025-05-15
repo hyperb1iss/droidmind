@@ -9,16 +9,7 @@ import logging
 
 from droidmind.devices import get_device_manager
 from droidmind.tools.app_management import (
-    clear_app_data,
-    get_app_activities,
-    get_app_info,
-    get_app_manifest,
-    get_app_permissions,
-    install_app,
-    list_packages,
-    start_app,
-    stop_app,
-    uninstall_app,
+    app_operations,
 )
 
 # Re-export all tool functions for backward compatibility
@@ -58,8 +49,8 @@ from droidmind.tools.ui import (
 # Re-export get_device_manager for backward compatibility
 __all__ = [
     "app_logs",
+    "app_operations",
     "capture_bugreport",
-    "clear_app_data",
     "connect_device",
     "device_anr_logs",
     "device_battery_stats",
@@ -69,23 +60,14 @@ __all__ = [
     "disconnect_device",
     "dump_heap",
     "file_operations",
-    "get_app_activities",
-    "get_app_info",
-    "get_app_manifest",
-    "get_app_permissions",
     "get_device_manager",
     "input_text",
-    "install_app",
     "list_devices",
-    "list_packages",
     "press_key",
     "reboot_device",
     "screenshot",
     "shell_command",
-    "start_app",
     "start_intent",
-    "stop_app",
     "swipe",
     "tap",
-    "uninstall_app",
 ]

@@ -6,6 +6,7 @@ as well as extracting and analyzing app information like manifests, components, 
 """
 
 from dataclasses import dataclass
+from enum import Enum
 import os
 import re
 
@@ -14,6 +15,21 @@ from mcp.server.fastmcp import Context
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
 from droidmind.log import logger
+
+
+class AppAction(str, Enum):
+    """Defines the available sub-actions for the 'app-operations' tool."""
+
+    INSTALL_APP = "install_app"
+    UNINSTALL_APP = "uninstall_app"
+    START_APP = "start_app"
+    STOP_APP = "stop_app"
+    CLEAR_APP_DATA = "clear_app_data"
+    LIST_PACKAGES = "list_packages"
+    GET_APP_MANIFEST = "get_app_manifest"
+    GET_APP_PERMISSIONS = "get_app_permissions"
+    GET_APP_ACTIVITIES = "get_app_activities"
+    GET_APP_INFO = "get_app_info"
 
 
 @dataclass
@@ -264,8 +280,7 @@ class AppAnalyzer:
         return manifest
 
 
-@mcp.tool()
-async def install_app(
+async def _install_app_impl(
     serial: str,
     apk_path: str,
     ctx: Context,
@@ -307,8 +322,7 @@ async def install_app(
         return f"Error installing APK: {e!s}"
 
 
-@mcp.tool()
-async def uninstall_app(serial: str, package: str, ctx: Context, keep_data: bool = False) -> str:
+async def _uninstall_app_impl(serial: str, package: str, ctx: Context, keep_data: bool = False) -> str:
     """
     Uninstall an app from the device.
 
@@ -340,8 +354,7 @@ async def uninstall_app(serial: str, package: str, ctx: Context, keep_data: bool
         return f"Error uninstalling app: {e!s}"
 
 
-@mcp.tool()
-async def start_app(serial: str, package: str, ctx: Context, activity: str = "") -> str:
+async def _start_app_impl(serial: str, package: str, ctx: Context, activity: str = "") -> str:
     """
     Start an app on the device.
 
@@ -373,8 +386,7 @@ async def start_app(serial: str, package: str, ctx: Context, activity: str = "")
         return f"Error starting app: {e!s}"
 
 
-@mcp.tool()
-async def stop_app(serial: str, package: str, ctx: Context) -> str:
+async def _stop_app_impl(serial: str, package: str, ctx: Context) -> str:
     """
     Force stop an app on the device.
 
@@ -401,8 +413,7 @@ async def stop_app(serial: str, package: str, ctx: Context) -> str:
         return f"Error stopping app: {e!s}"
 
 
-@mcp.tool()
-async def clear_app_data(serial: str, package: str, ctx: Context) -> str:
+async def _clear_app_data_impl(serial: str, package: str, ctx: Context) -> str:
     """
     Clear app data and cache for the specified package.
 
@@ -432,8 +443,7 @@ async def clear_app_data(serial: str, package: str, ctx: Context) -> str:
         return f"Error clearing app data: {e!s}"
 
 
-@mcp.tool()
-async def list_packages(serial: str, ctx: Context, include_system_apps: bool = False) -> str:
+async def _list_packages_impl(serial: str, ctx: Context, include_system_apps: bool = False) -> str:
     """
     List installed packages on the device.
 
@@ -472,8 +482,7 @@ async def list_packages(serial: str, ctx: Context, include_system_apps: bool = F
         return f"Error listing packages: {e!s}"
 
 
-@mcp.tool()
-async def get_app_manifest(serial: str, package: str, ctx: Context) -> str:
+async def _get_app_manifest_impl(serial: str, package: str, ctx: Context) -> str:
     """
     Get the AndroidManifest.xml contents for an app.
 
@@ -519,8 +528,7 @@ async def get_app_manifest(serial: str, package: str, ctx: Context) -> str:
         return f"Error retrieving app manifest: {e!s}"
 
 
-@mcp.tool()
-async def get_app_permissions(serial: str, package: str, ctx: Context) -> str:
+async def _get_app_permissions_impl(serial: str, package: str, ctx: Context) -> str:
     """
     Get the permissions used by an app.
 
@@ -566,8 +574,7 @@ async def get_app_permissions(serial: str, package: str, ctx: Context) -> str:
         return f"Error retrieving app permissions: {e!s}"
 
 
-@mcp.tool()
-async def get_app_activities(serial: str, package: str, ctx: Context) -> str:
+async def _get_app_activities_impl(serial: str, package: str, ctx: Context) -> str:
     """
     Get the activities defined in an app.
 
@@ -626,8 +633,7 @@ async def get_app_activities(serial: str, package: str, ctx: Context) -> str:
         return f"Error retrieving app activities: {e!s}"
 
 
-@mcp.tool()
-async def get_app_info(serial: str, package: str, ctx: Context) -> str:
+async def _get_app_info_impl(serial: str, package: str, ctx: Context) -> str:
     """
     Get detailed information about an app.
 
@@ -691,3 +697,121 @@ async def get_app_info(serial: str, package: str, ctx: Context) -> str:
     except Exception as e:
         logger.exception("Error retrieving app info: %s", e)
         return f"Error retrieving app info: {e!s}"
+
+
+@mcp.tool(name="app-operations")
+async def app_operations(
+    serial: str,
+    action: AppAction,
+    ctx: Context,
+    package: str | None = None,  # Required for most actions
+    apk_path: str | None = None,  # For install_app
+    reinstall: bool = False,  # For install_app
+    grant_permissions: bool = True,  # For install_app
+    keep_data: bool = False,  # For uninstall_app
+    activity: str = "",  # For start_app
+    include_system_apps: bool = False,  # For list_packages
+) -> str:
+    """
+    Perform various application management operations on an Android device.
+
+    This single tool consolidates various app-related actions.
+    The 'action' parameter determines the operation.
+
+    Args:
+        serial: Device serial number.
+        action: The specific app operation to perform.
+        ctx: MCP Context for logging and interaction.
+        package (Optional[str]): Package name for the target application. Required by most actions.
+        apk_path (Optional[str]): Path to the APK file (local to the server). Used by `install_app`.
+        reinstall (Optional[bool]): Whether to reinstall if app exists. Used by `install_app`.
+        grant_permissions (Optional[bool]): Whether to grant all requested permissions. Used by `install_app`.
+        keep_data (Optional[bool]): Whether to keep app data and cache directories. Used by `uninstall_app`.
+        activity (Optional[str]): Optional activity name to start. Used by `start_app`.
+        include_system_apps (Optional[bool]): Whether to include system apps. Used by `list_packages`.
+
+    Returns:
+        A string message indicating the result or status of the operation.
+
+    ---
+    Available Actions and their specific argument usage:
+
+    1.  `action="install_app"`
+        - Requires: `apk_path`
+        - Optional: `reinstall`, `grant_permissions`
+    2.  `action="uninstall_app"`
+        - Requires: `package`
+        - Optional: `keep_data`
+    3.  `action="start_app"`
+        - Requires: `package`
+        - Optional: `activity`
+    4.  `action="stop_app"`
+        - Requires: `package`
+    5.  `action="clear_app_data"`
+        - Requires: `package`
+    6.  `action="list_packages"`
+        - Optional: `include_system_apps`
+    7.  `action="get_app_manifest"`
+        - Requires: `package`
+    8.  `action="get_app_permissions"`
+        - Requires: `package`
+    9.  `action="get_app_activities"`
+        - Requires: `package`
+    10. `action="get_app_info"`
+        - Requires: `package`
+    ---
+    """
+    try:
+        # Basic argument checks
+        if (
+            action
+            in [
+                AppAction.UNINSTALL_APP,
+                AppAction.START_APP,
+                AppAction.STOP_APP,
+                AppAction.CLEAR_APP_DATA,
+                AppAction.GET_APP_MANIFEST,
+                AppAction.GET_APP_PERMISSIONS,
+                AppAction.GET_APP_ACTIVITIES,
+                AppAction.GET_APP_INFO,
+            ]
+            and package is None
+        ):
+            return f"❌ Error: 'package' is required for action '{action.value}'."
+
+        if action == AppAction.INSTALL_APP and apk_path is None:
+            return "❌ Error: 'apk_path' is required for action 'install_app'."
+
+        # Dispatch to implementations
+        if action == AppAction.INSTALL_APP:
+            # We already checked apk_path is not None
+            return await _install_app_impl(serial, apk_path, ctx, reinstall, grant_permissions)  # type: ignore
+        if action == AppAction.UNINSTALL_APP:
+            return await _uninstall_app_impl(serial, package, ctx, keep_data)  # type: ignore
+        if action == AppAction.START_APP:
+            return await _start_app_impl(serial, package, ctx, activity)  # type: ignore
+        if action == AppAction.STOP_APP:
+            return await _stop_app_impl(serial, package, ctx)  # type: ignore
+        if action == AppAction.CLEAR_APP_DATA:
+            return await _clear_app_data_impl(serial, package, ctx)  # type: ignore
+        if action == AppAction.LIST_PACKAGES:
+            return await _list_packages_impl(serial, ctx, include_system_apps)
+        if action == AppAction.GET_APP_MANIFEST:
+            return await _get_app_manifest_impl(serial, package, ctx)  # type: ignore
+        if action == AppAction.GET_APP_PERMISSIONS:
+            return await _get_app_permissions_impl(serial, package, ctx)  # type: ignore
+        if action == AppAction.GET_APP_ACTIVITIES:
+            return await _get_app_activities_impl(serial, package, ctx)  # type: ignore
+        if action == AppAction.GET_APP_INFO:
+            return await _get_app_info_impl(serial, package, ctx)  # type: ignore
+
+        # Should not be reached if AppAction enum is comprehensive
+        valid_actions = ", ".join([act.value for act in AppAction])
+        logger.error("Invalid app action '%s' received. Valid actions are: %s", action, valid_actions)
+        return f"❌ Error: Unknown app action '{action}'. Valid actions are: {valid_actions}."
+
+    except Exception as e:
+        logger.exception(
+            "Unexpected error during app operation %s on %s for package '%s': %s", action, serial, package, e
+        )
+        return f"❌ Error: An unexpected error occurred during '{action.value}': {e!s}"
