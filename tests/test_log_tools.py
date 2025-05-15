@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from droidmind.devices import Device, DeviceManager
-from droidmind.tools.logs import device_anr_logs, device_battery_stats, device_crash_logs
+from droidmind.tools.logs import LogAction, android_log
 
 
 @pytest.mark.asyncio
 class TestANRLogs:
-    """Tests for the device_anr_logs tool."""
+    """Tests for the device_anr_logs action via android_log tool."""
 
     @pytest.fixture
     def mock_device(self):
@@ -53,8 +53,8 @@ class TestANRLogs:
         """Test basic ANR logs functionality."""
         # Patch the device manager to return our mock
         with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
-            # Call the tool
-            result = await device_anr_logs("test_device", mock_context)
+            # Call the tool using the new action-based approach
+            result = await android_log(serial="test_device", action=LogAction.GET_ANR_LOGS, ctx=mock_context)
 
             # Verify results
             assert "# Application Not Responding (ANR) Traces" in result
@@ -64,7 +64,7 @@ class TestANRLogs:
 
 @pytest.mark.asyncio
 class TestCrashLogs:
-    """Tests for the device_crash_logs tool."""
+    """Tests for the device_crash_logs action via android_log tool."""
 
     @pytest.fixture
     def mock_device(self):
@@ -104,8 +104,8 @@ class TestCrashLogs:
         """Test basic crash logs functionality."""
         # Patch the device manager to return our mock
         with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
-            # Call the tool
-            result = await device_crash_logs("test_device", mock_context)
+            # Call the tool using the new action-based approach
+            result = await android_log(serial="test_device", action=LogAction.GET_CRASH_LOGS, ctx=mock_context)
 
             # Verify results
             assert "# Android Application Crash Reports" in result
@@ -119,7 +119,7 @@ class TestCrashLogs:
 
 @pytest.mark.asyncio
 class TestBatteryStats:
-    """Tests for the device_battery_stats tool."""
+    """Tests for the device_battery_stats action via android_log tool."""
 
     @pytest.fixture
     def mock_device(self):
@@ -179,8 +179,8 @@ Statistics since last charge:
         """Test basic battery stats functionality."""
         # Patch the device manager to return our mock
         with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
-            # Call the tool
-            result = await device_battery_stats("test_device", mock_context)
+            # Call the tool using the new action-based approach
+            result = await android_log(serial="test_device", action=LogAction.GET_BATTERY_STATS, ctx=mock_context)
 
             # Verify results
             assert "# Battery Statistics Report 🔋" in result

@@ -6,7 +6,7 @@ import pytest
 
 from droidmind.devices import Device, DeviceManager
 from droidmind.tools.app_management import AppAction, app_operations
-from droidmind.tools.logs import app_logs
+from droidmind.tools.logs import LogAction, android_log as logs_tool
 
 
 @pytest.fixture
@@ -183,9 +183,11 @@ async def test_get_app_manifest(mock_device_manager, mock_context):
 
 @pytest.mark.asyncio
 async def test_app_logs_tool(mock_device_manager, mock_context):
-    """Test the app_logs tool."""
+    """Test the get_app_logs action via android_log tool."""
     with patch("droidmind.tools.logs.get_device_manager", return_value=mock_device_manager):
-        result = await app_logs("test_device", "com.example.app", mock_context)
+        result = await logs_tool(
+            serial="test_device", action=LogAction.GET_APP_LOGS, package="com.example.app", ctx=mock_context
+        )
 
     assert "Logs for App" in result
     assert "This is a log message" in result

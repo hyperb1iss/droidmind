@@ -5,6 +5,7 @@ This module provides tools for collecting and analyzing various types of logs
 from Android devices, including logcat, ANR traces, crash reports, and battery stats.
 """
 
+from enum import Enum
 import os
 import re
 from typing import Any
@@ -14,6 +15,16 @@ from mcp.server.fastmcp import Context
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
 from droidmind.log import logger
+
+
+class LogAction(str, Enum):
+    """Defines the available sub-actions for the 'android-log' tool."""
+
+    GET_DEVICE_LOGCAT = "get_device_logcat"
+    GET_APP_LOGS = "get_app_logs"
+    GET_ANR_LOGS = "get_anr_logs"
+    GET_CRASH_LOGS = "get_crash_logs"
+    GET_BATTERY_STATS = "get_battery_stats"
 
 
 async def _get_filtered_logcat(
@@ -70,8 +81,7 @@ async def _get_filtered_logcat(
         return f"Error retrieving logcat output: {e!s}"
 
 
-@mcp.tool()
-async def device_logcat(
+async def _get_device_logcat_impl(
     serial: str,
     ctx: Context,
     lines: int = 1000,
@@ -118,12 +128,11 @@ async def device_logcat(
         return "\n".join(result)
 
     except Exception as e:
-        logger.exception("Error getting logcat output")
+        logger.exception("Error getting logcat output in _get_device_logcat_impl")
         return f"Error retrieving logcat output: {e!s}"
 
 
-@mcp.tool()
-async def device_anr_logs(serial: str, ctx: Context) -> str:
+async def _get_anr_logs_impl(serial: str, ctx: Context) -> str:
     """
     Get Application Not Responding (ANR) traces from a device.
 
@@ -189,12 +198,11 @@ async def device_anr_logs(serial: str, ctx: Context) -> str:
 
         return "\n".join(output)
     except Exception as e:
-        logger.exception("Error getting ANR traces")
+        logger.exception("Error getting ANR traces in _get_anr_logs_impl")
         return f"Error retrieving ANR traces: {e!s}"
 
 
-@mcp.tool()
-async def device_crash_logs(serial: str, ctx: Context) -> str:
+async def _get_crash_logs_impl(serial: str, ctx: Context) -> str:
     """
     Get application crash logs from a device.
 
@@ -288,12 +296,11 @@ async def device_crash_logs(serial: str, ctx: Context) -> str:
 
         return "\n".join(output)
     except Exception as e:
-        logger.exception("Error getting crash logs")
+        logger.exception("Error getting crash logs in _get_crash_logs_impl")
         return f"Error retrieving crash logs: {e!s}"
 
 
-@mcp.tool()
-async def device_battery_stats(serial: str, ctx: Context) -> str:
+async def _get_battery_stats_impl(serial: str, ctx: Context) -> str:
     """
     Get battery statistics and history from a device.
 
@@ -383,12 +390,11 @@ async def device_battery_stats(serial: str, ctx: Context) -> str:
         return "\n".join(output)
 
     except Exception as e:
-        logger.exception("Error getting battery stats")
+        logger.exception("Error getting battery stats in _get_battery_stats_impl")
         return f"Error retrieving battery statistics: {e!s}"
 
 
-@mcp.tool()
-async def app_logs(serial: str, package: str, ctx: Context, lines: int = 1000) -> str:
+async def _get_app_logs_impl(serial: str, package: str, ctx: Context, lines: int = 1000) -> str:
     """
     Get logs for a specific app from logcat.
 
@@ -454,5 +460,77 @@ async def app_logs(serial: str, package: str, ctx: Context, lines: int = 1000) -
         return "\n".join(result)
 
     except Exception as e:
-        logger.exception("Error getting logs for app %s", package)
+        logger.exception("Error getting logs for app %s in _get_app_logs_impl", package)
         return f"Error retrieving app logs: {e!s}"
+
+
+@mcp.tool(name="android-log")
+async def android_log(
+    serial: str,
+    action: LogAction,
+    ctx: Context,
+    package: str | None = None,
+    lines: int = 1000,
+    filter_expr: str = "",
+    buffer: str = "main",
+    format_type: str = "threadtime",
+    max_size: int | None = 100000,
+) -> str:
+    """
+    Perform various log retrieval operations on an Android device.
+
+    This single tool consolidates various log-related actions.
+    The 'action' parameter determines the operation.
+
+    Args:
+        serial: Device serial number.
+        action: The specific log operation to perform.
+        ctx: MCP Context for logging and interaction.
+        package (Optional[str]): Package name for `get_app_logs` action.
+        lines (int): Number of lines to fetch for logcat actions (default: 1000).
+        filter_expr (Optional[str]): Logcat filter expression for `get_device_logcat`.
+        buffer (Optional[str]): Logcat buffer for `get_device_logcat` (default: "main").
+        format_type (Optional[str]): Logcat output format for `get_device_logcat` (default: "threadtime").
+        max_size (Optional[int]): Max output size for `get_device_logcat` (default: 100KB).
+
+    Returns:
+        A string message containing the requested logs or status.
+
+    ---
+    Available Actions and their specific argument usage:
+
+    1.  `action="get_device_logcat"`
+        - Optional: `lines`, `filter_expr`, `buffer`, `format_type`, `max_size`.
+    2.  `action="get_app_logs"`
+        - Requires: `package`.
+        - Optional: `lines`.
+    3.  `action="get_anr_logs"`
+        - No specific arguments beyond `serial` and `ctx`.
+    4.  `action="get_crash_logs"`
+        - No specific arguments beyond `serial` and `ctx`.
+    5.  `action="get_battery_stats"`
+        - No specific arguments beyond `serial` and `ctx`.
+    ---
+    """
+    try:
+        if action == LogAction.GET_APP_LOGS and package is None:
+            return "❌ Error: 'package' is required for action 'get_app_logs'."
+
+        if action == LogAction.GET_DEVICE_LOGCAT:
+            return await _get_device_logcat_impl(serial, ctx, lines, filter_expr, buffer, format_type, max_size)
+        if action == LogAction.GET_APP_LOGS:
+            return await _get_app_logs_impl(serial, package, ctx, lines)  # type: ignore
+        if action == LogAction.GET_ANR_LOGS:
+            return await _get_anr_logs_impl(serial, ctx)
+        if action == LogAction.GET_CRASH_LOGS:
+            return await _get_crash_logs_impl(serial, ctx)
+        if action == LogAction.GET_BATTERY_STATS:
+            return await _get_battery_stats_impl(serial, ctx)
+
+        valid_actions = ", ".join([la.value for la in LogAction])
+        logger.error("Invalid log action '%s' received. Valid actions are: %s.", action, valid_actions)
+        return f"❌ Error: Unknown log action '{action}'. Valid actions are: {valid_actions}."
+
+    except Exception as e:
+        logger.exception("Unexpected error during log operation %s for serial '%s': %s", action, serial, e)
+        return f"❌ Error: An unexpected error occurred during '{action.value}': {e!s}"

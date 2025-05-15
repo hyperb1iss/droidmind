@@ -33,34 +33,34 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### Diagnostics & Logging
 
-- **`device_logcat`**: Fetches general logcat output from a device.
+- **`android-log`**: Performs various log retrieval operations on an Android device.
   - `serial`: Device serial number.
-  - `lines` (optional): Number of lines.
-  - `filter_expr` (optional): Logcat filter.
-  - `buffer` (optional): Logcat buffer (e.g., `main`, `crash`).
-  - `format_type` (optional): Log output format.
-  - `max_size` (optional): Maximum output character size.
-- **`app_logs`**: Fetches logcat output filtered for a specific application.
-  - `serial`: Device serial number.
-  - `package`: Application package name.
-  - `lines` (optional): Number of lines.
-- **`device_anr_logs`**: Retrieves Application Not Responding (ANR) traces.
-  - `serial`: Device serial number.
-- **`device_crash_logs`**: Fetetches application crash reports (tombstones, dropbox, logcat crash buffer).
-  - `serial`: Device serial number.
-- **`device_battery_stats`**: Gets battery statistics and history.
-  - `serial`: Device serial number.
+  - `action`: Specifies the operation. One of:
+    - `get_device_logcat`: Fetches general logcat output from a device.
+        - Optional: `lines`, `filter_expr`, `buffer`, `format_type`, `max_size`.
+    - `get_app_logs`: Fetches logcat output filtered for a specific application.
+        - Requires: `package`.
+        - Optional: `lines`.
+    - `get_anr_logs`: Retrieves Application Not Responding (ANR) traces.
+        - No specific arguments beyond `serial` and `ctx`.
+    - `get_crash_logs`: Fetches application crash reports.
+        - No specific arguments beyond `serial` and `ctx`.
+    - `get_battery_stats`: Gets battery statistics and history.
+        - No specific arguments beyond `serial` and `ctx`.
+  - `ctx`: MCP Context.
+  - `package` (optional): Package name for `get_app_logs`.
+  - `lines` (optional): Number of lines for logcat actions.
+  - `filter_expr` (optional): Filter for `get_device_logcat`.
+  - `buffer` (optional): Logcat buffer for `get_device_logcat`.
+  - `format_type` (optional): Output format for `get_device_logcat`.
+  - `max_size` (optional): Max output size for `get_device_logcat`.
+  - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/logs.py` for detailed argument requirements.
+
 - **`capture_bugreport`**: Captures a comprehensive bug report from the device.
   - `serial`: Device serial number.
   - `output_path` (optional): Local path to save the bug report zip.
   - `include_screenshots` (optional): Default `True`.
   - `timeout_seconds` (optional): Default `300`.
-- **`dump_heap`**: Captures a Java or native heap dump from a running process.
-  - `serial`: Device serial number.
-  - `package_or_pid`: Application package name or process ID.
-  - `output_path` (optional): Local path to save the heap dump.
-  - `native` (optional): `False` for Java heap (default), `True` for native heap.
-  - `timeout_seconds` (optional): Default `120`.
 
 ### File System Operations
 

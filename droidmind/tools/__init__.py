@@ -22,11 +22,7 @@ from droidmind.tools.diagnostics import (
 )
 from droidmind.tools.file_operations import file_operations
 from droidmind.tools.logs import (
-    app_logs,
-    device_anr_logs,
-    device_battery_stats,
-    device_crash_logs,
-    device_logcat,
+    android_log,
 )
 from droidmind.tools.media import (
     screenshot,
@@ -45,13 +41,9 @@ from droidmind.tools.ui import (
 # Re-export get_device_manager for backward compatibility
 __all__ = [
     "android_device",
-    "app_logs",
+    "android_log",
     "app_operations",
     "capture_bugreport",
-    "device_anr_logs",
-    "device_battery_stats",
-    "device_crash_logs",
-    "device_logcat",
     "dump_heap",
     "file_operations",
     "get_device_manager",
