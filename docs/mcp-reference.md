@@ -10,17 +10,26 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### Device Connection & Management
 
-- **`list_devices`**: Lists all connected Android devices and their basic information.
-- **`connect_device`**: Connects to an Android device over TCP/IP (Wi-Fi).
-  - `ip_address`: IP address of the device.
-  - `port` (optional): Port number (default 5555).
-- **`disconnect_device`**: Disconnects from a specified Android device (primarily for TCP/IP connections).
-  - `serial`: Device serial number.
-- **`device_properties`**: Retrieves detailed system properties of a specific device.
-  - `serial`: Device serial number.
-- **`reboot_device`**: Reboots a device into normal, recovery, or bootloader mode.
-  - `serial`: Device serial number.
-  - `mode` (optional): `normal` (default), `recovery`, `bootloader`.
+- **`android-device`**: Performs various device management operations on Android devices.
+  - `action`: Specifies the operation. One of:
+    - `list_devices`: Lists all connected Android devices and their basic information.
+        - No specific arguments required beyond `ctx`.
+    - `connect_device`: Connects to an Android device over TCP/IP (Wi-Fi).
+        - Requires: `ip_address`.
+        - Optional: `port` (default 5555).
+    - `disconnect_device`: Disconnects from a specified Android device.
+        - Requires: `serial`.
+    - `device_properties`: Retrieves detailed system properties of a specific device.
+        - Requires: `serial`.
+    - `reboot_device`: Reboots a device into normal, recovery, or bootloader mode.
+        - Requires: `serial`.
+        - Optional: `mode` (default `normal`; e.g., `recovery`, `bootloader`).
+  - `ctx`: MCP Context.
+  - `serial` (optional): Device serial number. See specific `action` for usage.
+  - `ip_address` (optional): IP address for `connect_device`.
+  - `port` (optional): Port for `connect_device`.
+  - `mode` (optional): Reboot mode for `reboot_device`.
+  - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/device_management.py` for the most detailed argument requirements for each `action`.
 
 ### Diagnostics & Logging
 

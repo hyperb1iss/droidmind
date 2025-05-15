@@ -5,6 +5,7 @@ This module provides MCP tools for listing, connecting to, disconnecting from,
 and rebooting Android devices, as well as retrieving device information.
 """
 
+from enum import Enum
 import re
 
 from mcp.server.fastmcp import Context
@@ -14,8 +15,17 @@ from droidmind.devices import get_device_manager
 from droidmind.log import logger
 
 
-@mcp.tool()
-async def list_devices(ctx: Context) -> str:
+class DeviceAction(str, Enum):
+    """Defines the available sub-actions for the 'android-device' tool."""
+
+    LIST_DEVICES = "list_devices"
+    CONNECT_DEVICE = "connect_device"
+    DISCONNECT_DEVICE = "disconnect_device"
+    REBOOT_DEVICE = "reboot_device"
+    DEVICE_PROPERTIES = "device_properties"
+
+
+async def _list_devices_impl(ctx: Context) -> str:
     """
     List all connected Android devices.
 
@@ -41,12 +51,11 @@ async def list_devices(ctx: Context) -> str:
 
         return result
     except Exception as e:
-        logger.exception("Error in list_devices tool: %s", e)
+        logger.exception("Error in list_devices_impl: %s", e)
         return f"❌ Error listing devices: {e}\n\nCheck logs for detailed traceback."
 
 
-@mcp.tool()
-async def connect_device(ctx: Context, ip_address: str, port: int = 5555) -> str:
+async def _connect_device_impl(ctx: Context, ip_address: str, port: int = 5555) -> str:
     """
     Connect to an Android device over TCP/IP.
 
@@ -86,12 +95,11 @@ The device is now available for commands and operations.
 
         return f"❌ Failed to connect to device at {ip_address}:{port}"
     except Exception as e:
-        logger.exception("Error connecting to device: %s", e)
+        logger.exception("Error connecting to device in _connect_device_impl: %s", e)
         return f"❌ Error connecting to device: {e!s}"
 
 
-@mcp.tool()
-async def disconnect_device(serial: str, ctx: Context) -> str:
+async def _disconnect_device_impl(serial: str, ctx: Context) -> str:
     """
     Disconnect from an Android device.
 
@@ -110,12 +118,11 @@ async def disconnect_device(serial: str, ctx: Context) -> str:
 
         return f"Device {serial} was not connected"
     except Exception as e:
-        logger.exception("Error disconnecting from device: %s", e)
+        logger.exception("Error disconnecting from device in _disconnect_device_impl: %s", e)
         return f"Error disconnecting from device: {e!s}"
 
 
-@mcp.tool()
-async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
+async def _reboot_device_impl(serial: str, ctx: Context, mode: str = "normal") -> str:
     """
     Reboot the device.
 
@@ -142,12 +149,11 @@ async def reboot_device(serial: str, ctx: Context, mode: str = "normal") -> str:
 
         return f"Device {serial} is rebooting in {mode} mode"
     except Exception as e:
-        logger.exception("Error rebooting device: %s", e)
+        logger.exception("Error rebooting device in _reboot_device_impl: %s", e)
         return f"Error rebooting device: {e!s}"
 
 
-@mcp.tool()
-async def device_properties(serial: str, ctx: Context) -> str:
+async def _device_properties_impl(serial: str, ctx: Context) -> str:
     """
     Get detailed properties of a specific device.
 
@@ -192,5 +198,87 @@ async def device_properties(serial: str, ctx: Context) -> str:
         result += "```"
         return result
     except Exception as e:
-        logger.exception("Error retrieving device properties: %s", e)
+        logger.exception("Error retrieving device properties in _device_properties_impl: %s", e)
         return f"Error retrieving device properties: {e!s}"
+
+
+@mcp.tool(name="android-device")
+async def android_device(
+    action: DeviceAction,
+    ctx: Context,
+    serial: str | None = None,
+    ip_address: str | None = None,
+    port: int = 5555,
+    mode: str = "normal",
+) -> str:
+    """
+    Perform various device management operations on Android devices.
+
+    This single tool consolidates various device-related actions.
+    The 'action' parameter determines the operation.
+
+    Args:
+        action: The specific device operation to perform.
+        ctx: MCP Context for logging and interaction.
+        serial (Optional[str]): Device serial number. Required by most actions except connect/list.
+        ip_address (Optional[str]): IP address for 'connect_device' action.
+        port (Optional[int]): Port for 'connect_device' action (default: 5555).
+        mode (Optional[str]): Reboot mode for 'reboot_device' action (default: "normal").
+
+    Returns:
+        A string message indicating the result or status of the operation.
+
+    ---
+    Available Actions and their specific argument usage:
+
+    1.  `action="list_devices"`
+        - No specific arguments required beyond `ctx`.
+    2.  `action="connect_device"`
+        - Requires: `ip_address`
+        - Optional: `port`
+    3.  `action="disconnect_device"`
+        - Requires: `serial`
+    4.  `action="reboot_device"`
+        - Requires: `serial`
+        - Optional: `mode` (e.g., "normal", "recovery", "bootloader")
+    5.  `action="device_properties"`
+        - Requires: `serial`
+    ---
+    """
+    try:
+        # Argument checks based on action
+        if (
+            action
+            in [
+                DeviceAction.DISCONNECT_DEVICE,
+                DeviceAction.REBOOT_DEVICE,
+                DeviceAction.DEVICE_PROPERTIES,
+            ]
+            and serial is None
+        ):
+            return f"❌ Error: 'serial' is required for action '{action.value}'."
+
+        if action == DeviceAction.CONNECT_DEVICE and ip_address is None:
+            return "❌ Error: 'ip_address' is required for action 'connect_device'."
+
+        # Dispatch to implementations
+        if action == DeviceAction.LIST_DEVICES:
+            return await _list_devices_impl(ctx)
+        if action == DeviceAction.CONNECT_DEVICE:
+            # ip_address is checked not None above
+            return await _connect_device_impl(ctx, ip_address, port)  # type: ignore
+        if action == DeviceAction.DISCONNECT_DEVICE:
+            return await _disconnect_device_impl(serial, ctx)  # type: ignore
+        if action == DeviceAction.REBOOT_DEVICE:
+            return await _reboot_device_impl(serial, ctx, mode)  # type: ignore
+        if action == DeviceAction.DEVICE_PROPERTIES:
+            return await _device_properties_impl(serial, ctx)  # type: ignore
+
+        # Should not be reached if DeviceAction enum is comprehensive
+        valid_actions = ", ".join([act.value for act in DeviceAction])
+        logger.error("Invalid device action '%s' received. Valid actions are: %s", action, valid_actions)
+        return f"❌ Error: Unknown device action '{action}'. Valid actions are: {valid_actions}."
+
+    except Exception as e:
+        logger.exception("Unexpected error during device operation %s for serial '%s': %s", action, serial, e)
+        return f"❌ Error: An unexpected error occurred during '{action.value}': {e!s}"

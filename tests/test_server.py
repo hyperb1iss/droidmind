@@ -9,14 +9,11 @@ import pytest
 
 from droidmind.devices import Device
 from droidmind.tools import (
-    connect_device,
-    device_properties,
-    disconnect_device,
-    list_devices,
-    reboot_device,
+    android_device,  # Import the unified tool
     screenshot as capture_screenshot,
     shell_command,
 )
+from droidmind.tools.device_management import DeviceAction  # Import DeviceAction enum
 
 
 @pytest.fixture
@@ -71,7 +68,7 @@ def mock_device():
 @pytest.mark.asyncio
 @patch("droidmind.tools.device_management.get_device_manager")
 async def test_list_devices(mock_list_devices, mock_context, mock_device):
-    """Test the devicelist tool."""
+    """Test the list_devices action of android-device tool."""
 
     # Set up the mock device list
     class AsyncPropertyMock:
@@ -99,8 +96,8 @@ async def test_list_devices(mock_list_devices, mock_context, mock_device):
     mock_manager.list_devices = AsyncMock(return_value=[mock_device1, mock_device2])
     mock_list_devices.return_value = mock_manager
 
-    # Call the tool
-    result = await list_devices(ctx=mock_context)
+    # Call the tool using the new action-based approach
+    result = await android_device(action=DeviceAction.LIST_DEVICES, ctx=mock_context)
 
     # Verify the result
     assert "Connected Android Devices (2)" in result
@@ -111,14 +108,14 @@ async def test_list_devices(mock_list_devices, mock_context, mock_device):
 @pytest.mark.asyncio
 @patch("droidmind.tools.device_management.get_device_manager")
 async def test_list_devices_empty(mock_list_devices, mock_context):
-    """Test the devicelist tool with no devices."""
+    """Test the list_devices action with no devices."""
     # Set up the mock device manager
     mock_manager = MagicMock()
     mock_manager.list_devices = AsyncMock(return_value=[])
     mock_list_devices.return_value = mock_manager
 
-    # Call the tool
-    result = await list_devices(ctx=mock_context)
+    # Call the tool using the new action-based approach
+    result = await android_device(action=DeviceAction.LIST_DEVICES, ctx=mock_context)
 
     # Verify the result
     assert "No devices connected" in result
@@ -127,14 +124,14 @@ async def test_list_devices_empty(mock_list_devices, mock_context):
 @pytest.mark.asyncio
 @patch("droidmind.tools.device_management.get_device_manager")
 async def test_device_properties(mock_get_device_manager, mock_context, mock_device):
-    """Test the device_properties tool."""
+    """Test the device_properties action of android-device tool."""
     # Setup mock get_device_manager to return a mock that has get_device method
     mock_manager = MagicMock()
     mock_manager.get_device = AsyncMock(return_value=mock_device)
     mock_get_device_manager.return_value = mock_manager
 
-    # Call the tool with correct parameter order
-    result = await device_properties(ctx=mock_context, serial="device1")
+    # Call the tool with the new action-based approach
+    result = await android_device(action=DeviceAction.DEVICE_PROPERTIES, ctx=mock_context, serial="device1")
 
     # Verify the result
     assert "Device Properties for device1" in result
@@ -148,14 +145,14 @@ async def test_device_properties(mock_get_device_manager, mock_context, mock_dev
 @pytest.mark.asyncio
 @patch("droidmind.tools.device_management.get_device_manager")
 async def test_device_properties_not_found(mock_get_device_manager, mock_context):
-    """Test the device_properties tool with a non-existent device."""
+    """Test the device_properties action with a non-existent device."""
     # Setup mock get_device_manager to return a mock that has get_device method
     mock_manager = MagicMock()
     mock_manager.get_device = AsyncMock(return_value=None)
     mock_get_device_manager.return_value = mock_manager
 
-    # Call the tool
-    result = await device_properties(ctx=mock_context, serial="nonexistent")
+    # Call the tool with the new action-based approach
+    result = await android_device(action=DeviceAction.DEVICE_PROPERTIES, ctx=mock_context, serial="nonexistent")
 
     # Verify the result
     assert "Device nonexistent not found or not connected" in result
@@ -164,14 +161,16 @@ async def test_device_properties_not_found(mock_get_device_manager, mock_context
 @pytest.mark.asyncio
 @patch("droidmind.tools.device_management.get_device_manager")
 async def test_connect_device(mock_connect, mock_context, mock_device):
-    """Test the connect_device tool."""
+    """Test the connect_device action of android-device tool."""
     # Setup mock get_device_manager to return a mock that has connect method
     mock_manager = MagicMock()
     mock_manager.connect = AsyncMock(return_value=mock_device)
     mock_connect.return_value = mock_manager
 
-    # Call the tool
-    result = await connect_device(ctx=mock_context, ip_address="192.168.1.100", port=5555)
+    # Call the tool with the new action-based approach
+    result = await android_device(
+        action=DeviceAction.CONNECT_DEVICE, ctx=mock_context, ip_address="192.168.1.100", port=5555
+    )
 
     # Verify the result
     assert "Device Connected Successfully" in result
@@ -182,14 +181,14 @@ async def test_connect_device(mock_connect, mock_context, mock_device):
 @pytest.mark.asyncio
 @patch("droidmind.tools.device_management.get_device_manager")
 async def test_disconnect_device(mock_disconnect, mock_context):
-    """Test the disconnect_device tool."""
+    """Test the disconnect_device action of android-device tool."""
     # Setup mock get_device_manager to return a mock that has disconnect method
     mock_manager = MagicMock()
     mock_manager.disconnect = AsyncMock(return_value=True)
     mock_disconnect.return_value = mock_manager
 
-    # Call the tool
-    result = await disconnect_device(ctx=mock_context, serial="device1")
+    # Call the tool with the new action-based approach
+    result = await android_device(action=DeviceAction.DISCONNECT_DEVICE, ctx=mock_context, serial="device1")
 
     # Verify the result
     assert "Successfully disconnected from device device1" in result
@@ -236,14 +235,16 @@ async def test_capture_screenshot(mock_get_device, mock_context, mock_device):
 @pytest.mark.asyncio
 @patch("droidmind.tools.device_management.get_device_manager")
 async def test_reboot_device(mock_get_device_manager, mock_context, mock_device):
-    """Test the reboot_device tool."""
+    """Test the reboot_device action of android-device tool."""
     # Setup mock get_device_manager to return a mock that has get_device method
     mock_manager = MagicMock()
     mock_manager.get_device = AsyncMock(return_value=mock_device)
     mock_get_device_manager.return_value = mock_manager
 
-    # Call the tool
-    result = await reboot_device(ctx=mock_context, serial="device1", mode="recovery")
+    # Call the tool with the new action-based approach
+    result = await android_device(
+        action=DeviceAction.REBOOT_DEVICE, ctx=mock_context, serial="device1", mode="recovery"
+    )
 
     # Verify the result
     assert "Device device1 is rebooting in recovery mode" in result
