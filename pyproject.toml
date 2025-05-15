@@ -289,8 +289,8 @@ good-names = ["i", "j", "k", "ex", "id", "fd", "_"]
 
 [tool.pylint.design]
 max-parents = 15
-max-returns = 10
-max-branches = 20
+max-returns = 30
+max-branches = 30
 max-statements = 60
 max-attributes = 20
 max-locals = 25

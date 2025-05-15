@@ -6,15 +6,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from droidmind.devices import Device
-from droidmind.tools import (
-    create_directory,
-    delete_file,
-    file_exists,
-    list_directory,
-    pull_file,
-    push_file,
-    read_file,
-)
+from droidmind.tools import file_operations
+from droidmind.tools.file_operations import FileAction  # Import the enum for actions
 
 
 @pytest.mark.asyncio
@@ -37,7 +30,13 @@ class TestFileTools:
         mock_device.read_file = AsyncMock(return_value="file contents")
 
         # Set up the list_directory method
-        mock_device.list_directory = AsyncMock(return_value=[])
+        mock_device.list_directory = AsyncMock(
+            return_value="""total 8
+drwxr-xr-x 4 root root 4096 Jan 1 12:00 .
+drwxr-xr-x 4 root root 4096 Jan 1 12:00 ..
+-rw-r--r-- 1 root root 1024 Jan 1 12:00 test.txt
+drwxr-xr-x 2 root root 4096 Jan 1 12:00 test_dir"""
+        )
 
         # Set up the create_directory method
         mock_device.create_directory = AsyncMock(return_value="Directory created")
@@ -60,12 +59,16 @@ class TestFileTools:
             yield mock_device
 
     async def test_push_file(self, mock_device):
-        """Test the push_file tool."""
+        """Test the push_file action."""
         # Create a temporary file to push
         with tempfile.NamedTemporaryFile() as temp_file:
-            # Call the tool
-            result = await push_file(
-                serial="device1", local_path=temp_file.name, device_path="/sdcard/file.txt", ctx=None
+            # Call the tool with push_file action
+            result = await file_operations(
+                serial="device1",
+                action=FileAction.PUSH_FILE,
+                local_path=temp_file.name,
+                device_path="/sdcard/file.txt",
+                ctx=None,
             )
 
             # Verify the result
@@ -73,12 +76,16 @@ class TestFileTools:
             assert "1 file pushed" in result
 
     async def test_pull_file(self, mock_device):
-        """Test the pull_file tool."""
+        """Test the pull_file action."""
         # Create a temporary file to pull to
         with tempfile.NamedTemporaryFile() as temp_file:
-            # Call the tool
-            result = await pull_file(
-                serial="device1", device_path="/sdcard/file.txt", local_path=temp_file.name, ctx=None
+            # Call the tool with pull_file action
+            result = await file_operations(
+                serial="device1",
+                action=FileAction.PULL_FILE,
+                device_path="/sdcard/file.txt",
+                local_path=temp_file.name,
+                ctx=None,
             )
 
             # Verify the result
@@ -86,48 +93,58 @@ class TestFileTools:
             assert "1 file pulled" in result
 
     async def test_read_file(self, mock_device):
-        """Test the read_file tool."""
-        # Call the tool
-        result = await read_file(serial="device1", device_path="/sdcard/file.txt", ctx=None)
+        """Test the read_file action."""
+        # Call the tool with read_file action
+        result = await file_operations(
+            serial="device1", action=FileAction.READ_FILE, device_path="/sdcard/file.txt", ctx=None
+        )
 
         # Verify the result
         assert "file contents" in result.lower()
 
     async def test_list_directory(self, mock_device):
-        """Test the list_directory tool."""
-        # Call the tool
-        result = await list_directory(serial="device1", path="/sdcard", ctx=None)
+        """Test the list_directory action."""
+        # Call the tool with list_directory action
+        result = await file_operations(serial="device1", action=FileAction.LIST_DIRECTORY, path="/sdcard", ctx=None)
 
         # Verify the result
         assert "directory" in result.lower()
 
     async def test_create_directory(self, mock_device):
-        """Test the create_directory tool."""
-        # Call the tool
-        result = await create_directory(serial="device1", path="/sdcard/test", ctx=None)
+        """Test the create_directory action."""
+        # Call the tool with create_directory action
+        result = await file_operations(
+            serial="device1", action=FileAction.CREATE_DIRECTORY, path="/sdcard/test", ctx=None
+        )
 
         # Verify the result
         assert "directory created" in result.lower()
 
     async def test_delete_file(self, mock_device):
-        """Test the delete_file tool."""
-        # Call the tool
-        result = await delete_file(serial="device1", path="/sdcard/file.txt", ctx=None)
+        """Test the delete_file action."""
+        # Call the tool with delete_file action
+        result = await file_operations(
+            serial="device1", action=FileAction.DELETE_FILE, path="/sdcard/file.txt", ctx=None
+        )
 
         # Verify the result
         assert "file deleted" in result.lower()
 
     async def test_file_exists(self, mock_device):
-        """Test the file_exists tool."""
-        # Call the tool
-        result = await file_exists(serial="device1", path="/sdcard/file.txt", ctx=None)
+        """Test the file_exists action."""
+        # Call the tool with file_exists action
+        result = await file_operations(
+            serial="device1", action=FileAction.FILE_EXISTS, path="/sdcard/file.txt", ctx=None
+        )
 
         # Verify the result
         assert result is True
 
         # Test with a non-existent file
         mock_device.file_exists.return_value = False
-        result = await file_exists(serial="device1", path="/sdcard/nonexistent.txt", ctx=None)
+        result = await file_operations(
+            serial="device1", action=FileAction.FILE_EXISTS, path="/sdcard/nonexistent.txt", ctx=None
+        )
 
         # Verify the result
         assert result is False
@@ -141,7 +158,9 @@ class TestFileTools:
         mock_get_manager.return_value = mock_manager
 
         # Test with a non-existent device
-        result = await file_exists(serial="nonexistent", path="/sdcard/file.txt", ctx=None)
+        result = await file_operations(
+            serial="nonexistent", action=FileAction.FILE_EXISTS, path="/sdcard/file.txt", ctx=None
+        )
 
         # Verify the result
         assert result is False

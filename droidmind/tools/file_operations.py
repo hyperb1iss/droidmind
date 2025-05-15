@@ -1,10 +1,11 @@
 """
 File Operations Tools - MCP tools for managing files on Android devices.
 
-This module provides MCP tools for listing, uploading, downloading, and manipulating
-files on connected Android devices.
+This module provides a unified MCP tool for listing, uploading, downloading, and manipulating
+files on connected Android devices using sub-actions.
 """
 
+from enum import Enum
 import os
 import re
 from typing import TYPE_CHECKING, NamedTuple
@@ -18,6 +19,20 @@ from droidmind.log import logger
 
 if TYPE_CHECKING:
     from droidmind.devices import Device
+
+
+class FileAction(str, Enum):
+    """Defines the available sub-commands for the 'android-file' tool."""
+
+    LIST_DIRECTORY = "list_directory"
+    PUSH_FILE = "push_file"
+    PULL_FILE = "pull_file"
+    DELETE_FILE = "delete_file"
+    CREATE_DIRECTORY = "create_directory"
+    FILE_EXISTS = "file_exists"
+    READ_FILE = "read_file"
+    WRITE_FILE = "write_file"
+    FILE_STATS = "file_stats"
 
 
 class FileInfo(NamedTuple):
@@ -98,445 +113,378 @@ async def _get_directory_counts(device: "Device", path: str) -> tuple[int | None
         return None, None
 
 
-@mcp.tool()
-async def list_directory(serial: str, path: str, ctx: Context) -> str:
-    """
-    List contents of a directory on the device.
+async def _list_directory_impl(device: "Device", path: str, ctx: Context) -> str:
+    """Implementation for listing directory contents."""
+    if ctx:
+        await ctx.info(f"Listing directory {path}...")
 
-    Args:
-        serial: Device serial number
-        path: Directory path to list
+    dir_resource = DirectoryResource(path, device)
+    contents = await dir_resource.list_contents()
 
-    Returns:
-        Directory listing
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            return f"Error: Device {serial} not found"
+    formatted_output = f"# 📁 Directory: {path}\n\n"
+    files = [item for item in contents if item.__class__.__name__ == "FileResource"]
+    dirs = [item for item in contents if item.__class__.__name__ == "DirectoryResource"]
 
-        # Log progress if ctx is available
-        if ctx:
-            await ctx.info(f"Listing directory {path}...")
+    formatted_output += f"**{len(files)} files, {len(dirs)} directories**\n\n"
 
-        # Use DirectoryResource to get structured directory contents
-        dir_resource = DirectoryResource(path, device)
-        contents = await dir_resource.list_contents()
+    if dirs:
+        formatted_output += "## Directories\n\n"
+        for dir_item in sorted(dirs, key=lambda x: x.name):
+            formatted_output += f"📁 `{dir_item.name}`\n"
+        formatted_output += "\n"
 
-        # Format the output
-        formatted_output = f"# 📁 Directory: {path}\n\n"
+    if files:
+        formatted_output += "## Files\n\n"
+        for file_item in sorted(files, key=lambda x: x.name):
+            size_str = file_item.to_dict().get("size", "unknown")
+            formatted_output += f"📄 `{file_item.name}` ({size_str})\n"
 
-        # Count files and directories
-        files = [item for item in contents if item.__class__.__name__ == "FileResource"]
-        dirs = [item for item in contents if item.__class__.__name__ == "DirectoryResource"]
-
-        formatted_output += f"**{len(files)} files, {len(dirs)} directories**\n\n"
-
-        # List directories first
-        if dirs:
-            formatted_output += "## Directories\n\n"
-            for dir_item in sorted(dirs, key=lambda x: x.name):
-                formatted_output += f"📁 `{dir_item.name}`\n"
-            formatted_output += "\n"
-
-        # Then list files
-        if files:
-            formatted_output += "## Files\n\n"
-            for file_item in sorted(files, key=lambda x: x.name):
-                size_str = file_item.to_dict().get("size", "unknown")
-                formatted_output += f"📄 `{file_item.name}` ({size_str})\n"
-
-        return formatted_output
-    except Exception as e:
-        logger.exception("Error listing directory: %s", e)
-        return f"Error listing directory: {e!s}"
+    return formatted_output
 
 
-@mcp.tool()
-async def push_file(serial: str, local_path: str, device_path: str, ctx: Context) -> str:
-    """
-    Upload a file to the device.
+async def _push_file_impl(device: "Device", local_path: str, device_path: str, ctx: Context) -> str:
+    """Implementation for uploading a file."""
+    if not os.path.exists(local_path):
+        return f"❌ Error: Local file {local_path} does not exist."
 
-    Args:
-        serial: Device serial number
-        local_path: Path to the local file
-        device_path: Destination path on the device
+    size = os.path.getsize(local_path)
+    size_str = format_file_size(size)
 
-    Returns:
-        Upload result message
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            raise ValueError(f"Device {serial} not found")
+    if ctx:
+        await ctx.info(f"Pushing file {os.path.basename(local_path)} ({size_str}) to {device_path}...")
 
-        # Check if the local file exists
-        if not os.path.exists(local_path):
-            return f"❌ Error: Local file {local_path} does not exist."
+    result = await device.push_file(local_path, device_path)
+    return f"""
+# ✅ File Uploaded Successfully
 
-        # Get file size for progress reporting
+The file `{os.path.basename(local_path)}` ({size_str}) has been uploaded to `{device_path}` on device {device.serial}.
+
+**Details**: {result}
+"""
+
+
+async def _pull_file_impl(device: "Device", device_path: str, local_path: str, ctx: Context) -> str:
+    """Implementation for downloading a file."""
+    local_dir = os.path.dirname(local_path)
+    if local_dir and not os.path.exists(local_dir):
+        os.makedirs(local_dir, exist_ok=True)
+
+    if ctx:
+        await ctx.info(f"Pulling file {device_path} to {local_path}...")
+
+    result = await device.pull_file(device_path, local_path)
+
+    size_str = "unknown size"
+    if os.path.exists(local_path):
         size = os.path.getsize(local_path)
         size_str = format_file_size(size)
 
-        # Log progress if ctx is available
-        if ctx:
-            await ctx.info(f"Pushing file {os.path.basename(local_path)} ({size_str}) to {device_path}...")
-
-        # Push the file
-        result = await device.push_file(local_path, device_path)
-
-        # Format the result
-        return f"""
-# ✅ File Uploaded Successfully
-
-The file `{os.path.basename(local_path)}` ({size_str}) has been uploaded to `{device_path}` on device {serial}.
-
-**Details**: {result}
-"""
-
-    except ValueError:
-        # Re-raise ValueError to ensure it propagates to the caller for testing
-        raise
-    except Exception as e:
-        logger.exception("Error pushing file: %s", e)
-        return f"❌ Error pushing file: {e}"
-
-
-@mcp.tool()
-async def pull_file(serial: str, device_path: str, local_path: str, ctx: Context) -> str:
-    """
-    Download a file from the device to the local machine.
-
-    Args:
-        serial: Device serial number
-        device_path: Path to the file on the device
-        local_path: Destination path on the local machine
-
-    Returns:
-        Download result message
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            raise ValueError(f"Device {serial} not found")
-
-        # Check if the directory exists
-        local_dir = os.path.dirname(local_path)
-        if local_dir and not os.path.exists(local_dir):
-            os.makedirs(local_dir, exist_ok=True)
-
-        # Log progress if ctx is available
-        if ctx:
-            await ctx.info(f"Pulling file {device_path} to {local_path}...")
-
-        # Pull the file
-        result = await device.pull_file(device_path, local_path)
-
-        # Get file size for reporting
-        if os.path.exists(local_path):
-            size = os.path.getsize(local_path)
-            size_str = format_file_size(size)
-        else:
-            size_str = "unknown size"
-
-        # Format the result
-        return f"""
+    return f"""
 # ✅ File Downloaded Successfully
 
-The file `{os.path.basename(device_path)}` ({size_str}) has been downloaded from device {serial} to `{local_path}`.
+The file `{os.path.basename(device_path)}` ({size_str}) has been downloaded from device {device.serial}
+to `{local_path}`.
 
 **Details**: {result}
 """
 
-    except Exception as e:
-        logger.exception("Error pulling file: %s", e)
-        return f"❌ Error pulling file: {e}"
+
+async def _delete_file_impl(device: "Device", path: str, ctx: Context) -> str:
+    """Implementation for deleting a file or directory."""
+    if ctx:
+        await ctx.info(f"Deleting {path}...")
+    return await device.delete_file(path)
 
 
-@mcp.tool()
-async def delete_file(serial: str, path: str, ctx: Context) -> str:
-    """
-    Delete a file or directory from the device.
-
-    Args:
-        serial: Device serial number
-        path: Path to the file or directory to delete
-
-    Returns:
-        Deletion result message
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            raise ValueError(f"Device {serial} not found")
-
-        # Log progress if ctx is available
-        if ctx:
-            await ctx.info(f"Deleting {path}...")
-
-        # Delete the file
-        return await device.delete_file(path)
-
-    except Exception as e:
-        logger.exception("Error deleting file: %s", e)
-        return f"❌ Error deleting file: {e}"
+async def _create_directory_impl(device: "Device", path: str, ctx: Context) -> str:
+    """Implementation for creating a directory."""
+    if ctx:
+        await ctx.info(f"Creating directory {path}...")
+    return await device.create_directory(path)
 
 
-@mcp.tool()
-async def create_directory(serial: str, path: str, ctx: Context) -> str:
-    """
-    Create a directory on the device.
-
-    Args:
-        serial: Device serial number
-        path: Path to the directory to create
-
-    Returns:
-        Result message
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            raise ValueError(f"Device {serial} not found")
-
-        # Log progress if ctx is available
-        if ctx:
-            await ctx.info(f"Creating directory {path}...")
-
-        # Create the directory
-        return await device.create_directory(path)
-
-    except Exception as e:
-        logger.exception("Error creating directory: %s", e)
-        return f"❌ Error creating directory: {e}"
+async def _file_exists_impl(
+    device: "Device", path: str, ctx: Context
+) -> bool:  # ctx is not used here but kept for consistency
+    """Implementation for checking if a file exists."""
+    return await device.file_exists(path)
 
 
-@mcp.tool()
-async def file_exists(serial: str, path: str, ctx: Context) -> bool:
-    """
-    Check if a file exists on the device.
+async def _read_file_impl(device: "Device", device_path: str, ctx: Context, max_size: int) -> str:
+    """Implementation for reading file contents."""
+    file_check = await device.run_shell(f"[ -f '{device_path}' ] && echo 'exists' || echo 'not found'")
+    if "not found" in file_check:
+        return f"❌ Error: File {device_path} not found on device {device.serial}"
 
-    Args:
-        serial: Device serial number
-        path: Path to the file on the device
+    size_check = await device.run_shell(f"wc -c '{device_path}' 2>/dev/null || echo 'unknown'")
+    size_str = "unknown size"
 
-    Returns:
-        True if the file exists, False otherwise
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            raise ValueError(f"Device {serial} not found")
-
-        # Check if the file exists
-        return await device.file_exists(path)
-
-    except Exception as e:
-        logger.exception("Error checking if file exists: %s", e)
-        return False
-
-
-@mcp.tool()
-async def read_file(serial: str, device_path: str, ctx: Context, max_size: int = 100000) -> str:
-    """
-    Read the contents of a file on the device.
-
-    Args:
-        serial: Device serial number
-        device_path: Path to the file on device
-        max_size: Maximum file size to read in bytes (default: 100KB)
-                  Files larger than this will return an error message instead
-
-    Returns:
-        File contents as text or error message
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            return f"❌ Error: Device {serial} not connected or not found."
-
-        # Check file existence
-        file_check = await device.run_shell(f"[ -f '{device_path}' ] && echo 'exists' || echo 'not found'")
-        if "not found" in file_check:
-            return f"❌ Error: File {device_path} not found on device {serial}"
-
-        # Check file size
-        size_check = await device.run_shell(f"wc -c '{device_path}' 2>/dev/null || echo 'unknown'")
-        size_str = "unknown size"
-
-        if "unknown" not in size_check:
-            try:
-                file_size = int(size_check.split()[0])
-                if file_size > max_size:
-                    return f"""
+    if "unknown" not in size_check:
+        try:
+            file_size = int(size_check.split()[0])
+            if file_size > max_size:
+                return f"""
 # ⚠️ File Too Large
 
 The file `{device_path}` is {file_size / 1024:.1f} KB, which exceeds the maximum size limit of {max_size / 1024:.1f} KB.
 
-Use `pull_file` to download this file to your local machine instead.
+Use `action="pull_file"` to download this file to your local machine instead.
 """
-                size_str = f"{file_size / 1024:.1f} KB" if file_size >= 1024 else f"{file_size} bytes"
-            except (ValueError, IndexError):
-                # Continue with reading if we can't parse the size
-                pass
+            size_str = f"{file_size / 1024:.1f} KB" if file_size >= 1024 else f"{file_size} bytes"
+        except (ValueError, IndexError):
+            pass
 
-        # Log progress if ctx is available
-        if ctx:
-            await ctx.info(f"Reading file {device_path} ({size_str})...")
+    if ctx:
+        await ctx.info(f"Reading file {device_path} ({size_str})...")
 
-        # Read the file
-        content = await device.read_file(device_path, max_size)
+    content = await device.read_file(device_path, max_size)
+    code_extensions = [".py", ".java", ".kt", ".c", ".cpp", ".h", ".xml", ".json", ".yaml", ".sh", ".txt", ".md"]
+    file_ext = os.path.splitext(device_path)[1].lower()
+    result_md = f"# File Contents: {device_path}\n\n"
 
-        # Determine if we should show the content in a code block based on the file extension
-        code_extensions = [".py", ".java", ".kt", ".c", ".cpp", ".h", ".xml", ".json", ".yaml", ".sh", ".txt", ".md"]
-        file_ext = os.path.splitext(device_path)[1].lower()
-
-        result = f"# File Contents: {device_path}\n\n"
-
-        if file_ext in code_extensions:
-            # Try to guess the language for syntax highlighting
-            lang_map = {
-                ".py": "python",
-                ".java": "java",
-                ".kt": "kotlin",
-                ".c": "c",
-                ".cpp": "cpp",
-                ".h": "cpp",
-                ".xml": "xml",
-                ".json": "json",
-                ".yaml": "yaml",
-                ".yml": "yaml",
-                ".sh": "bash",
-                ".md": "markdown",
-            }
-            lang = lang_map.get(file_ext, "")
-            result += f"```{lang}\n{content}\n```"
-        else:
-            # For binary or unknown files, just use a plain code block
-            result += f"```\n{content}\n```"
-
-        return result
-
-    except Exception as e:
-        logger.exception("Error reading file: %s", e)
-        return f"❌ Error reading file: {e!s}"
+    if file_ext in code_extensions:
+        lang_map = {
+            ".py": "python",
+            ".java": "java",
+            ".kt": "kotlin",
+            ".c": "c",
+            ".cpp": "cpp",
+            ".h": "cpp",
+            ".xml": "xml",
+            ".json": "json",
+            ".yaml": "yaml",
+            ".yml": "yaml",
+            ".sh": "bash",
+            ".md": "markdown",
+        }
+        lang = lang_map.get(file_ext, "")
+        result_md += f"```{lang}\n{content}\n```"
+    else:
+        result_md += f"```\n{content}\n```"
+    return result_md
 
 
-@mcp.tool()
-async def write_file(serial: str, device_path: str, content: str, ctx: Context) -> str:
-    """
-    Write text content to a file on the device.
-
-    Args:
-        serial: Device serial number
-        device_path: Path to the file on device
-        content: Text content to write to the file
-
-    Returns:
-        Writing result message
-    """
-    try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            return f"❌ Error: Device {serial} not connected or not found."
-
-        # Check if the parent directory exists
-        parent_dir = os.path.dirname(device_path)
-        if parent_dir:
-            dir_check = await device.run_shell(f"[ -d '{parent_dir}' ] && echo 'exists' || echo 'not found'")
-            if "not found" in dir_check:
-                # Create parent directory
+async def _write_file_impl(device: "Device", device_path: str, content: str, ctx: Context) -> str:
+    """Implementation for writing text content to a file."""
+    parent_dir = os.path.dirname(device_path)
+    if parent_dir:
+        dir_check = await device.run_shell(f"[ -d '{parent_dir}' ] && echo 'exists' || echo 'not found'")
+        if "not found" in dir_check:
+            if ctx:
                 await ctx.info(f"Creating parent directory {parent_dir}...")
-                await device.create_directory(parent_dir)
+            await device.create_directory(parent_dir)
 
-        # Write to the file
-        content_size = len(content.encode("utf-8"))
-        size_str = f"{content_size / 1024:.1f} KB" if content_size >= 1024 else f"{content_size} bytes"
+    content_size = len(content.encode("utf-8"))
+    size_str = f"{content_size / 1024:.1f} KB" if content_size >= 1024 else f"{content_size} bytes"
 
+    if ctx:
         await ctx.info(f"Writing {size_str} to {device_path}...")
-        await device.write_file(device_path, content)
+    await device.write_file(device_path, content)
 
-        return f"""
+    return f"""
 # ✨ File Written Successfully
 
 - **Path**: {device_path}
 - **Size**: {size_str}
-- **Device**: {serial}
+- **Device**: {device.serial}
 
 The content has been saved to the file.
 """
-    except Exception as e:
-        logger.exception("Error writing file: %s", e)
-        return f"❌ Error writing file: {e!s}"
 
 
-@mcp.tool()
-async def file_stats(serial: str, path: str, ctx: Context) -> str:
-    """
-    Get detailed information about a file or directory on the device.
-
-    Args:
-        serial: Device serial number
-        path: Path to the file or directory
-        ctx: MCP context
-
-    Returns:
-        A markdown-formatted file/directory statistics report
-    """
-    try:
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            return f"Error: Device {serial} not found or not connected."
-
+async def _file_stats_impl(device: "Device", path: str, ctx: Context) -> str:
+    """Implementation for getting file statistics."""
+    if ctx:
         await ctx.info(f"Getting statistics for {path}...")
 
-        # Check if the path exists
-        check_cmd = f"[ -e '{path}' ] && echo 'exists' || echo 'notfound'"
-        check_result = await device.run_shell(check_cmd)
-        if "notfound" in check_result:
-            return f"Error: Path {path} not found on device {serial}."
+    check_cmd = f"[ -e '{path}' ] && echo 'exists' || echo 'notfound'"
+    check_result = await device.run_shell(check_cmd)
+    if "notfound" in check_result:
+        return f"Error: Path {path} not found on device {device.serial}."
 
-        # Determine if it's a file or directory
-        is_dir_cmd = f"[ -d '{path}' ] && echo 'directory' || echo 'file'"
-        is_dir_result = await device.run_shell(is_dir_cmd)
-        is_directory = "directory" in is_dir_result
+    is_dir_cmd = f"[ -d '{path}' ] && echo 'directory' || echo 'file'"
+    is_dir_result = await device.run_shell(is_dir_cmd)
+    is_directory = "directory" in is_dir_result
 
-        # Format the output
-        result = [f"# {'Directory' if is_directory else 'File'} Statistics: {path}\n"]
+    result = [f"# {'Directory' if is_directory else 'File'} Statistics: {path}\n"]
+    file_info = await _parse_ls_output(device, path, is_directory)
 
-        # Get and parse file info
-        file_info = await _parse_ls_output(device, path, is_directory)
-        if file_info:
-            size_str = _format_size(file_info.size)
-            result.extend(
-                [
-                    f"- **Type**: {'Directory' if is_directory else 'File'}\n",
-                    f"- **Name**: {os.path.basename(path)}\n",
-                    f"- **Size**: {size_str}\n",
-                    f"- **Owner**: {file_info.owner}:{file_info.group}\n",
-                    f"- **Permissions**: {file_info.perms}\n",
-                    f"- **Modified**: {file_info.date}\n",
-                ]
-            )
+    if file_info:
+        size_str = _format_size(file_info.size)
+        result.extend(
+            [
+                f"- **Type**: {'Directory' if is_directory else 'File'}\n",
+                f"- **Name**: {os.path.basename(path)}\n",
+                f"- **Size**: {size_str}\n",
+                f"- **Owner**: {file_info.owner}:{file_info.group}\n",
+                f"- **Permissions**: {file_info.perms}\n",
+                f"- **Modified**: {file_info.date}\n",
+            ]
+        )
 
-        # For directories, add file and directory counts
-        if is_directory:
-            file_count, dir_count = await _get_directory_counts(device, path)
-            if file_count is not None:
-                result.append(f"- **Files**: {file_count}\n")
-            if dir_count is not None:
-                result.append(f"- **Subdirectories**: {dir_count}\n")
+    if is_directory:
+        file_count, dir_count = await _get_directory_counts(device, path)
+        if file_count is not None:
+            result.append(f"- **Files**: {file_count}\n")
+        if dir_count is not None:
+            result.append(f"- **Subdirectories**: {dir_count}\n")
 
-        return "".join(result)
+    return "".join(result)
 
+
+@mcp.tool(name="android-file")
+async def file_operations(
+    serial: str,
+    action: FileAction,
+    ctx: Context,
+    path: str | None = None,
+    local_path: str | None = None,
+    device_path: str | None = None,
+    content: str | None = None,
+    max_size: int | None = 100000,  # Default from original read_file
+) -> str | bool:
+    """
+    Perform file and directory operations on an Android device.
+
+    This single tool consolidates various file system actions.
+    The 'action' parameter determines the operation.
+
+    Args:
+        serial: Device serial number.
+        action: The specific file operation to perform. See available actions below.
+        ctx: MCP Context for logging and interaction.
+        path (Optional[str]): General path argument on the device.
+                               Used by: list_directory, delete_file, create_directory, file_exists, file_stats.
+                               Can also be used by read_file and write_file as an alternative to 'device_path'.
+        local_path (Optional[str]): Path on the DroidMind server machine.
+                                    Used by: push_file (source), pull_file (destination).
+        device_path (Optional[str]): Path on the Android device.
+                                     Used by: push_file (destination), pull_file (source), read_file (source),
+                                     write_file (destination).
+                                     If 'path' is also provided for read/write, 'device_path' takes precedence.
+        content (Optional[str]): Text content to write.
+                                 Used by: write_file.
+        max_size (Optional[int]): Maximum file size in bytes for read_file (default: 100KB).
+                                  Used by: read_file.
+
+    Returns:
+        Union[str, bool]: A string message indicating the result or status for most actions.
+                          Returns a boolean for the 'file_exists' action.
+
+    ---
+    Available Actions and their specific argument usage:
+
+    1.  `action="list_directory"`: Lists contents of a directory.
+        - Requires: `path` (directory path on device).
+        - Returns: Formatted string of directory contents.
+
+    2.  `action="push_file"`: Uploads a file from the local server to the device.
+        - Requires: `local_path` (source on server), `device_path` (destination on device).
+        - Returns: String message confirming upload.
+
+    3.  `action="pull_file"`: Downloads a file from the device to the local server.
+        - Requires: `device_path` (source on device), `local_path` (destination on server).
+        - Returns: String message confirming download.
+
+    4.  `action="delete_file"`: Deletes a file or directory from the device.
+        - Requires: `path` (path to delete on device).
+        - Returns: String message confirming deletion.
+
+    5.  `action="create_directory"`: Creates a directory on the device.
+        - Requires: `path` (directory path to create on device).
+        - Returns: String message confirming creation.
+
+    6.  `action="file_exists"`: Checks if a file or directory exists on the device.
+        - Requires: `path` (path to check on device).
+        - Returns: `True` if exists, `False` otherwise.
+
+    7.  `action="read_file"`: Reads the contents of a file from the device.
+        - Requires: `device_path` (or `path`) for the file on device.
+        - Optional: `max_size` (defaults to 100KB).
+        - Returns: String containing file contents or error message.
+
+    8.  `action="write_file"`: Writes text content to a file on the device.
+        - Requires: `device_path` (or `path`) for the file on device, `content` (text to write).
+        - Returns: String message confirming write.
+
+    9.  `action="file_stats"`: Gets detailed statistics for a file or directory.
+        - Requires: `path` (path on device).
+        - Returns: Markdown-formatted string of file/directory statistics.
+    ---
+    """
+    # Declare here so it's always bound for exception logging
+    _effective_device_path: str | None = None
+    try:
+        # Initialize _effective_device_path early for robust logging
+        _effective_device_path = device_path if device_path is not None else path
+
+        device = await get_device_manager().get_device(serial)
+        if not device:
+            if action == FileAction.FILE_EXISTS:
+                logger.warning("Device %s not found for file_exists check.", serial)
+                return False
+            return f"❌ Error: Device {serial} not found or not connected."
+
+        # Use device_path if provided, otherwise fall back to path for relevant actions
+        # _effective_device_path assignment moved above
+
+        if action == FileAction.LIST_DIRECTORY:
+            if path is None:
+                return "❌ Error: 'path' is required for list_directory."
+            return await _list_directory_impl(device, path, ctx)
+        if action == FileAction.PUSH_FILE:
+            if local_path is None or device_path is None:
+                return "❌ Error: 'local_path' and 'device_path' are required for push_file."
+            return await _push_file_impl(device, local_path, device_path, ctx)
+        if action == FileAction.PULL_FILE:
+            if device_path is None or local_path is None:
+                return "❌ Error: 'device_path' and 'local_path' are required for pull_file."
+            return await _pull_file_impl(device, device_path, local_path, ctx)
+        if action == FileAction.DELETE_FILE:
+            if path is None:
+                return "❌ Error: 'path' is required for delete_file."
+            return await _delete_file_impl(device, path, ctx)
+        if action == FileAction.CREATE_DIRECTORY:
+            if path is None:
+                return "❌ Error: 'path' is required for create_directory."
+            return await _create_directory_impl(device, path, ctx)
+        if action == FileAction.FILE_EXISTS:
+            if path is None:
+                return "❌ Error: 'path' is required for file_exists."
+            return await _file_exists_impl(device, path, ctx)
+        if action == FileAction.READ_FILE:
+            if _effective_device_path is None:
+                return "❌ Error: 'device_path' or 'path' is required for read_file."
+            return await _read_file_impl(device, _effective_device_path, ctx, max_size or 100000)
+        if action == FileAction.WRITE_FILE:
+            if _effective_device_path is None or content is None:
+                return "❌ Error: ('device_path' or 'path') and 'content' are required for write_file."
+            return await _write_file_impl(device, _effective_device_path, content, ctx)
+        if action == FileAction.FILE_STATS:
+            if path is None:
+                return "❌ Error: 'path' is required for file_stats."
+            return await _file_stats_impl(device, path, ctx)
+
+        # Default case for invalid actions
+        valid_actions = ", ".join([act.value for act in FileAction])
+        logger.error("Invalid file action '%s' received. Valid actions are: %s", action, valid_actions)
+        return f"❌ Error: Unknown file action '{action}'. Valid actions are: {valid_actions}."
+
+    except ValueError as ve:
+        logger.warning("ValueError during file operation %s for device %s: %s", action, serial, ve)
+        if action == FileAction.FILE_EXISTS:
+            return False
+        return f"❌ Error: {ve}"
     except Exception as e:
-        logger.exception("Error getting file statistics: %s", e)
-        return f"❌ Error getting file statistics: {e}"
+        # Log with a fallback for _effective_device_path if necessary
+        log_path_info = _effective_device_path if _effective_device_path is not None else "[path not determinable]"
+        logger.exception(
+            "Unexpected error during file operation %s on %s with path/device_path '%s': %s",
+            action,
+            serial,
+            log_path_info,
+            e,
+        )
+        if action == FileAction.FILE_EXISTS:
+            return False
+        return f"❌ Error: An unexpected error occurred: {e!s}"

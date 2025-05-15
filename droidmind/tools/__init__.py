@@ -33,17 +33,7 @@ from droidmind.tools.diagnostics import (
     capture_bugreport,
     dump_heap,
 )
-from droidmind.tools.file_operations import (
-    create_directory,
-    delete_file,
-    file_exists,
-    file_stats,
-    list_directory,
-    pull_file,
-    push_file,
-    read_file,
-    write_file,
-)
+from droidmind.tools.file_operations import file_operations
 from droidmind.tools.logs import (
     app_logs,
     device_anr_logs,
@@ -67,16 +57,10 @@ from droidmind.tools.ui import (
 
 # Re-export get_device_manager for backward compatibility
 __all__ = [
-    # App logs and diagnostics
     "app_logs",
-    # Diagnostics
     "capture_bugreport",
-    # App management
     "clear_app_data",
-    # Device management
     "connect_device",
-    "create_directory",
-    "delete_file",
     "device_anr_logs",
     "device_battery_stats",
     "device_crash_logs",
@@ -84,32 +68,19 @@ __all__ = [
     "device_properties",
     "disconnect_device",
     "dump_heap",
-    "file_exists",
-    # File operations
-    "file_stats",
-    # App management
+    "file_operations",
     "get_app_activities",
     "get_app_info",
     "get_app_manifest",
     "get_app_permissions",
-    # Utilities
     "get_device_manager",
-    # UI automation
     "input_text",
-    # App management
     "install_app",
     "list_devices",
-    # File operations
-    "list_directory",
     "list_packages",
     "press_key",
-    "pull_file",
-    "push_file",
-    "read_file",
     "reboot_device",
-    # Media
     "screenshot",
-    # Shell
     "shell_command",
     "start_app",
     "start_intent",
@@ -117,5 +88,4 @@ __all__ = [
     "swipe",
     "tap",
     "uninstall_app",
-    "write_file",
 ]

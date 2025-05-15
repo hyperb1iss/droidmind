@@ -55,37 +55,35 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### File System Operations
 
-- **`list_directory`**: Lists contents of a directory on the device.
+- **`android-file`**: Performs a variety of file and directory operations on an Android device.
   - `serial`: Device serial number.
-  - `path`: Directory path on device.
-- **`read_file`**: Reads the content of a text file from the device.
-  - `serial`: Device serial number.
-  - `device_path`: File path on device.
-  - `max_size` (optional): Max characters to read (default 100KB).
-- **`write_file`**: Writes text content to a file on the device.
-  - `serial`: Device serial number.
-  - `device_path`: File path on device.
-  - `content`: Text content to write.
-- **`push_file`**: Uploads a file from the DroidMind server's machine to the device.
-  - `serial`: Device serial number.
-  - `local_path`: Path on the DroidMind server machine.
-  - `device_path`: Destination path on device.
-- **`pull_file`**: Downloads a file from the device to the DroidMind server's machine.
-  - `serial`: Device serial number.
-  - `device_path`: File path on device.
-  - `local_path`: Destination path on the DroidMind server machine.
-- **`create_directory`**: Creates a directory on the device.
-  - `serial`: Device serial number.
-  - `path`: Directory path to create on device.
-- **`delete_file`**: Deletes a file or directory (recursively) from the device.
-  - `serial`: Device serial number.
-  - `path`: File or directory path to delete on device.
-- **`file_exists`**: Checks if a file or directory exists on the device.
-  - `serial`: Device serial number.
-  - `path`: Path to check on device.
-- **`file_stats`**: Gets detailed statistics for a file or directory.
-  - `serial`: Device serial number.
-  - `path`: Path on device.
+  - `action`: Specifies the operation. One of:
+    - `list_directory`: Lists contents of a directory on the device.
+        - Requires: `path` (directory path on device).
+    - `push_file`: Uploads a file from the DroidMind server's machine to the device.
+        - Requires: `local_path` (source on server), `device_path` (destination on device).
+    - `pull_file`: Downloads a file from the device to the DroidMind server's machine.
+        - Requires: `device_path` (source on device), `local_path` (destination on server).
+    - `delete_file`: Deletes a file or directory.
+        - Requires: `path` (path to delete on device).
+    - `create_directory`: Creates a directory.
+        - Requires: `path` (directory path to create on device).
+    - `file_exists`: Checks if a file or directory exists.
+        - Requires: `path` (path to check on device). Returns: `bool`.
+    - `read_file`: Reads file content.
+        - Requires: `device_path` (or `path`) for the file on device.
+        - Optional: `max_size` (defaults to 100KB).
+    - `write_file`: Writes content to a file.
+        - Requires: `device_path` (or `path`) for the file on device, `content` (text to write).
+    - `file_stats`: Gets file/directory statistics.
+        - Requires: `path` (path on device).
+  - `ctx`: MCP Context.
+  - `path` (optional): General device path. See specific `action` for usage.
+  - `local_path` (optional): Server-side path for `push_file`/`pull_file`.
+  - `device_path` (optional): Device-side path. See specific `action` for usage. Takes precedence over `path` if both are provided for read/write.
+  - `content` (optional): Text content for `write_file`.
+  - `max_size` (optional): Max size for `read_file`.
+  - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/file_operations.py` for the most detailed argument requirements for each `action`.
 
 ### Application Management
 
