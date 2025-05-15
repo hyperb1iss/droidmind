@@ -1,0 +1,154 @@
+site_name: DroidMind Documentation
+site_url: https://hyperbliss.github.io/droidmind/
+site_author: Stefanie Jane 🌠
+site_description: >-
+  DroidMind - Control Android devices with AI through the Model Context Protocol.
+
+# Repository
+repo_name: hyperbliss/droidmind
+repo_url: https://github.com/hyperbliss/droidmind
+edit_uri: "edit/main/docs/"
+
+# Copyright
+copyright: Copyright &copy; 2024 Stefanie Jane Kondik
+
+# Theme
+theme:
+  name: material
+  language: en
+  logo: assets/images/logo_neon_glow_icon.png # Path to your logo
+  favicon: assets/images/favicon.ico # Path to your favicon
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    # - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes # Allows index.md to act as section overview
+    - toc.integrate # Table of contents on the left, integrated with navigation
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+    # - content.tooltips # Experimental, can be nice
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep_purple
+      accent: pink
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep_purple
+      accent: pink
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+# Plugins
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_root_heading: yes
+            show_source: yes
+  - awesome-pages
+  - roamlinks # For [[wiki-style]] links if you use them
+  - mermaid2 # For Mermaid diagrams
+
+# Extensions
+markdown_extensions:
+  - footnotes
+  - attr_list
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_style: dracula # or another theme like monokai, native
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details # For collapsible admonitions
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - toc:
+      permalink: true
+      toc_depth: 3 # How many levels to show in the Table of Contents
+  - tables # For standard Markdown tables
+
+# Navigation Structure
+# If you don't use awesome-pages, you'll need to define nav here explicitly.
+# With awesome-pages, it will mostly auto-generate based on your file structure
+# and any .pages files you create for ordering/titling.
+
+# Example nav structure if not using awesome-pages or for overriding:
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Docker Guide: docker.md
+  - Quick Start: quickstart.md
+  - User Manual:
+    - Introduction: user_manual/index.md
+    - 1. Connecting to Devices: user_manual/connecting_devices.md
+    - 2. Device Information & Diagnostics: user_manual/device_diagnostics.md
+    - 3. File System Operations: user_manual/file_system.md
+    - 4. Application Management: user_manual/app_management.md
+    - 5. Shell Command Execution: user_manual/shell_commands.md
+    - 6. UI Automation: user_manual/ui_automation.md
+    - 7. Device Management Actions: user_manual/device_management_actions.md
+    - 8. Security Considerations: user_manual/security.md
+    - 9. Example AI Queries: user_manual/example_queries.md
+  - MCP Reference:
+    - Tool Overview: mcp-reference.md
+  - Project Plan: plan.md
+  - License: license.md # Assuming you have a LICENSE.md
+
+# Extra CSS/JS (if needed)
+extra_css:
+  - assets/stylesheets/custom.css # Create this file if you need custom styles
+
+extra_javascript:
+  - assets/javascripts/custom.js # Create this file if you need custom JS
+
+# For mkdocstrings if you plan to generate API docs from code
+watch:
+  - droidmind # Watch your source code directory if using mkdocstrings
+  - docs
+
+# For awesome-pages plugin, if you use it for navigation control
+# awesome_pages:
+#   order: # Example of explicit ordering if needed
+#     - index.md
+#     - installation.md
+#     - ...rest
+#   collapse_single_pages: true
+#   titles:
+#     user_manual/index.md: User Guide
+
+# Uncomment if you want to add a link to MkDocs documentation in the footer
+# extra:
+#   social:
+#     - icon: fontawesome/brands/github 
+#       link: https://github.com/hyperbliss
+#     - icon: fontawesome/solid/book 
+#       link: https://www.mkdocs.org 

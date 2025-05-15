@@ -1,0 +1,174 @@
+/* DroidMind Custom Styles - NeonGlam ✨ */
+
+/* Import a cool font if desired - example: Google Fonts */
+/* @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;400;700&display=swap'); */
+
+:root {
+  --md-primary-fg-color: #9d00ff; /* Neon Violet */
+  --md-primary-fg-color--light: #e0b0ff;
+  --md-primary-fg-color--dark: #7a00cc;
+
+  --md-accent-fg-color: #ff00ff; /* Cyber Magenta */
+  --md-accent-fg-color--transparent: hsla(300, 100%, 50%, 0.1);
+  --md-accent-bg-color: #2e002e; /* Darker magenta for backgrounds */
+
+  /* Cyberpunk-inspired text selection */
+  --md-highlight-fg-color: #000000;
+  --md-highlight-bg-color: #00ffff; /* Electric Cyan */
+
+  /* Code blocks */
+  --md-code-fg-color: #e6e6fa; /* Lavender */
+  --md-code-bg-color: #1e1e2e; /* Dark purplish blue */
+
+  /* Links */
+  --md-typeset-a-color: #00ffff; /* Electric Cyan */
+}
+
+/* Apply a slightly more cyberpunk/tech font if Orbitron or Rajdhani is loaded */
+/*
+body {
+  font-family: 'Rajdhani', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.05em;
+}
+*/
+
+/* Header styling */
+.md-header {
+  background-color: #1a001a; /* Very dark magenta/purple */
+  /* Add a subtle bottom glow if desired */
+  /* box-shadow: 0 2px 10px hsla(300, 100%, 50%, 0.3); */
+}
+
+/* Main content area */
+.md-main__inner {
+  /* margin-top: 0; /* Adjust if navigation.tabs.sticky is used */
+}
+
+/* Table of Contents - if toc.integrate is true, this styles the left nav */
+.md-sidebar--primary .md-nav__title {
+  background-color: transparent; /* Keep it clean */
+  color: var(--md-primary-fg-color);
+  font-weight: bold;
+  padding-left: 0.8rem;
+}
+
+/* Code block specific styling - example for Python */
+.language-python .k {
+  color: #ff69b4; /* Hot Pink for keywords */
+  font-weight: bold;
+}
+.language-python .s,
+.language-python .s1,
+.language-python .s2 {
+  color: #39ff14; /* Mint Green for strings */
+}
+.language-python .c1 {
+  color: #8a2be2; /* BlueViolet for comments */
+  font-style: italic;
+}
+
+/* Admonition styling - NeonGlam touch */
+.md-typeset .admonition,
+.md-typeset details {
+  border-left-width: 0.3rem;
+  border-radius: 0.2rem;
+}
+
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-left-color: var(--md-primary-fg-color); /* Neon Violet */
+}
+.md-typeset .admonition.info,
+.md-typeset details.info {
+  border-left-color: #00bfff; /* Cool Blue */
+}
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-left-color: #ffe744; /* Electric Yellow */
+}
+.md-typeset .admonition.danger,
+.md-typeset details.danger,
+.md-typeset .admonition.error,
+.md-typeset details.error {
+  border-left-color: #ff69b4; /* Hot Pink */
+}
+.md-typeset .admonition.tip,
+.md-typeset details.tip,
+.md-typeset .admonition.hint,
+.md-typeset details.hint {
+  border-left-color: #39ff14; /* Mint Green */
+}
+
+/* Add a subtle glow to links on hover */
+a:hover {
+  text-shadow:
+    0 0 5px var(--md-typeset-a-color),
+    0 0 10px var(--md-typeset-a-color);
+  transition: text-shadow 0.3s ease-in-out;
+}
+
+/* Enhance blockquotes */
+.md-typeset blockquote {
+  border-left-color: var(--md-accent-fg-color);
+  color: var(--md-default-fg-color--light);
+  background-color: hsla(300, 100%, 50%, 0.05);
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+}
+
+/* Styling for the logo in the header to ensure it fits and looks good */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2rem; /* Adjust as needed */
+  width: auto;
+  margin-top: -0.2rem; /* Fine-tune vertical alignment */
+}
+
+/* Style for navigation tabs if enabled */
+.md-tabs {
+  background-color: #2e002e; /* Darker magenta for tabs background */
+}
+
+.md-tabs__link--active {
+  color: #ffffff; /* White text for active tab */
+  /* border-bottom: 2px solid var(--md-primary-fg-color); */
+}
+
+/* Add a bit more cyberpunk flair to tables */
+.md-typeset table:not([class]) th {
+  background-color: hsla(300, 100%, 20%, 0.7); /* Dark magenta translucent */
+  color: var(--md-primary-fg-color--light);
+  border: 1px solid var(--md-primary-fg-color);
+}
+
+.md-typeset table:not([class]) td {
+  border: 1px dotted var(--md-accent-fg-color--transparent);
+}
+
+/* Make horizontal rules more thematic */
+.md-typeset hr {
+  border-bottom: 1px dashed var(--md-primary-fg-color);
+  margin: 2em 0;
+}
+
+/* Custom scrollbar for Webkit browsers */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e2e; /* Dark purplish blue */
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-primary-fg-color); /* Neon Violet */
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-primary-fg-color--dark); /* Darker Neon Violet */
+}

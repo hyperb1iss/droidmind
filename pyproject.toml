@@ -45,6 +45,12 @@ dev = [
     "tomlkit>=0.13.2",
     "colorama>=0.4.6",
     "pyright>=1.1.400",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.14",
+    "mkdocstrings[python]>=0.29.1",
+    "mkdocs-awesome-pages-plugin>=2.10.1",
+    "mkdocs-roamlinks-plugin>=0.3.2",
+    "mkdocs-mermaid2-plugin>=1.2.1",
 ]
 sse = ["uvicorn>=0.27.0", "starlette>=0.46.0"]
 
