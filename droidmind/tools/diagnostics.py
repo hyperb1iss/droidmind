@@ -5,6 +5,7 @@ This module provides MCP tools for capturing bug reports and memory dumps from A
 """
 
 import asyncio
+from enum import Enum
 import os
 import tempfile
 
@@ -16,26 +17,17 @@ from droidmind.log import logger
 from droidmind.security import RiskLevel, log_command_execution
 
 
-@mcp.tool()
-async def capture_bugreport(
+class DiagAction(Enum):
+    """Actions available for diagnostic operations."""
+
+    CAPTURE_BUGREPORT = "capture_bugreport"
+    DUMP_HEAP = "dump_heap"
+
+
+async def _capture_bugreport_impl(
     serial: str, ctx: Context, output_path: str = "", include_screenshots: bool = True, timeout_seconds: int = 300
 ) -> str:
-    """
-    Capture a bug report from a device.
-
-    Bug reports are comprehensive diagnostic information packages that include
-    system logs, device state, running processes, and more.
-
-    Args:
-        serial: Device serial number
-        ctx: MCP context
-        output_path: Where to save the bug report (leave empty to return as text)
-        include_screenshots: Whether to include screenshots in the report
-        timeout_seconds: Maximum time to wait for the bug report to complete (in seconds)
-
-    Returns:
-        Path to the saved bug report or a summary of the report contents
-    """
+    """Implementation for capturing a bug report from a device."""
     try:
         # Get the device
         device = await get_device_manager().get_device(serial)
@@ -52,32 +44,34 @@ async def capture_bugreport(
 
         if include_screenshots:
             await ctx.info("Including screenshots in the bug report.")
-            bugreport_cmd = "bugreport"
+            bugreport_cmd_arg = "bugreport"
         else:
             await ctx.info("Excluding screenshots to reduce bug report size.")
-            bugreport_cmd = "bugreport -b"
+            bugreport_cmd_arg = "bugreportz"
 
         # Create a temporary directory if no output path is specified
-        temp_dir = None
-        if not output_path:
-            temp_dir = tempfile.mkdtemp(prefix="droidmind_bugreport_")
-            output_path = os.path.join(temp_dir, f"bugreport_{serial}.zip")
-            await ctx.info(f"No output path specified, saving to temporary file: {output_path}")
+        temp_dir_obj = None
+        actual_output_path = output_path
 
-        # Ensure the output directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        if not actual_output_path:
+            temp_dir_obj = tempfile.TemporaryDirectory(prefix="droidmind_bugreport_")
+            actual_output_path = os.path.join(
+                temp_dir_obj.name, f"bugreport_{serial}_{await device.run_shell('date +%Y%m%d_%H%M%S')}.zip"
+            )
+            await ctx.info(f"No output path specified, saving to temporary file: {actual_output_path}")
+        else:
+            # Ensure the output directory exists if a path is provided
+            os.makedirs(os.path.dirname(os.path.abspath(actual_output_path)), exist_ok=True)
 
         # Run the bugreport command and save to the specified path
-        cmd = f"bugreport {output_path}"
-        await ctx.info(f"Running command: adb -s {serial} {cmd}")
+        await ctx.info(f"Running command: adb -s {serial} {bugreport_cmd_arg} {actual_output_path}")
 
-        # Execute the adb bugreport command directly
         process = await asyncio.create_subprocess_exec(
             "adb",
             "-s",
             serial,
-            bugreport_cmd,
-            output_path,
+            bugreport_cmd_arg,
+            actual_output_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -85,67 +79,79 @@ async def capture_bugreport(
         # Set up a timeout
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
-            # We only need stderr for error messages
             stderr_str = stderr.decode().strip() if stderr else ""
 
             if process.returncode != 0:
                 await ctx.error(f"Bug report failed with exit code {process.returncode}")
                 await ctx.error(f"Error: {stderr_str}")
+                if temp_dir_obj:
+                    temp_dir_obj.cleanup()
                 return f"Failed to capture bug report: {stderr_str}"
 
-            # Check if the file was created
-            if not os.path.exists(output_path):
+            if not os.path.exists(actual_output_path):
                 await ctx.error("Bug report file was not created")
+                if temp_dir_obj:
+                    temp_dir_obj.cleanup()
                 return "Failed to capture bug report: No output file was created."
 
-            # Get file size
-            file_size = os.path.getsize(output_path)
+            file_size = os.path.getsize(actual_output_path)
             file_size_mb = file_size / (1024 * 1024)
             await ctx.info(f"✅ Bug report captured successfully! File size: {file_size_mb:.2f} MB")
 
-            # If the user specified an output path, return the path
-            if not temp_dir:
-                return f"Bug report saved to: {output_path} ({file_size_mb:.2f} MB)"
+            if not temp_dir_obj:
+                return f"Bug report saved to: {actual_output_path} ({file_size_mb:.2f} MB)"
 
             # If we created a temp file, analyze the bug report and return a summary
-            await ctx.info("Analyzing bug report contents...")
-            # Analyze zip file contents to return a summary
-            zip_list_cmd = f"unzip -l {output_path}"
+            await ctx.info("Analyzing bug report contents (summary)...")
+            zip_list_cmd = f'unzip -l \\"{actual_output_path}\\"'
             proc = await asyncio.create_subprocess_shell(
                 zip_list_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            zip_stdout, zip_stderr = await proc.communicate()
-            zip_contents = zip_stdout.decode().strip()
+            zip_stdout, _ = await proc.communicate()
+            zip_contents_summary = zip_stdout.decode().strip()
 
-            # Format a summary response
             summary = [
                 f"# Bug Report for {serial}",
-                f"Temporary file saved to: `{output_path}` ({file_size_mb:.2f} MB)",
+                f"Temporary file saved to: `{actual_output_path}` ({file_size_mb:.2f} MB)",
                 "",
-                "## Bug Report Contents",
+                "## Bug Report Contents (Summary)",
                 "```",
-                zip_contents[:2000] + ("..." if len(zip_contents) > 2000 else ""),
+                zip_contents_summary[:2000] + ("..." if len(zip_contents_summary) > 2000 else ""),
                 "```",
                 "",
                 "To extract specific information from this bug report, you can use:",
-                f"* `unzip -o {output_path} -d <extract_dir>` to extract all files",
-                f"* `unzip -o {output_path} bugreport-*.txt -d <extract_dir>` to extract just the main report",
+                f'* `unzip -o \\"{actual_output_path}\\" -d <extract_dir>` to extract all files',
+                (
+                    f'* `unzip -o \\"{actual_output_path}\\" bugreport-*.txt -d <extract_dir>` '
+                    "to extract just the main report"
+                ),
                 "",
-                "Note: This is a temporary file that may be cleaned up by the system later.",
+                "Note: This is a temporary file and will be cleaned up.",
             ]
-            return "\n".join(summary)
+            final_summary = "\\n".join(summary)
+            temp_dir_obj.cleanup()
+            return final_summary
 
         except TimeoutError:
-            # Try to terminate the process if it's still running
-            if process:
-                process.terminate()
-                await process.wait()
+            if process and process.returncode is None:
+                try:
+                    process.terminate()
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except TimeoutError:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
             await ctx.error(f"Bug report timed out after {timeout_seconds} seconds")
+            if temp_dir_obj:
+                temp_dir_obj.cleanup()
             return (
                 f"Bug report capture timed out after {timeout_seconds} seconds. Try again with a longer timeout value."
             )
+        finally:
+            if temp_dir_obj and os.path.exists(temp_dir_obj.name):
+                temp_dir_obj.cleanup()
 
     except Exception as e:
         logger.exception("Error capturing bug report: %s", e)
@@ -163,86 +169,112 @@ async def _resolve_pid(device: Device, ctx: Context, package_or_pid: str) -> str
         package_or_pid: Package name or process ID
 
     Returns:
-        The process ID as a string
+        The process ID as a string or empty string if not found.
     """
     if package_or_pid.isdigit():
-        return package_or_pid
+        # Validate if it's an active PID, otherwise it might be an app named like a number
+        ps_check_cmd = f"ps -p {package_or_pid} -o pid="
+        pid_exists_result = await device.run_shell(ps_check_cmd)
+        if pid_exists_result.strip() == package_or_pid:
+            return package_or_pid
+        # If not an active PID, treat it as a potential package name
 
     # It's a package name, get its PID
-    await ctx.info(f"🔍 Looking up process ID for package {package_or_pid}...")
+    await ctx.info(f"🔍 Looking up process ID for package '{package_or_pid}'...")
+
+    # Using ps -ef | grep might be more reliable or provide more context than pidof
+    # Example: ps -ef | grep com.example.app | grep -v grep
+    # Then parse the PID from the output
+    # However, pidof is simpler if available and works
+
     pid_cmd = f"pidof {package_or_pid}"
+
     pid_result = await device.run_shell(pid_cmd)
+    pids = pid_result.strip().split()
 
-    if not pid_result.strip():
-        # Try ps approach if pidof fails
-        ps_cmd = f"ps -A | grep {package_or_pid}"
+    if not pids:  # If pidof fails or returns nothing
+        # Fallback to 'ps' command
+        # Using a more robust ps command to avoid grabbing grep itself
+        # and to ensure we match the full package name at the end of the line.
+        ps_cmd = f"ps -A -o PID,CMD | grep '[[:space:]]{package_or_pid}$'"
+
         ps_result = await device.run_shell(ps_cmd)
+        ps_lines = ps_result.strip().split("\\n")
 
-        if not ps_result.strip():
-            await ctx.error(f"Cannot find process ID for package {package_or_pid}. Is the app running?")
+        if not ps_result.strip() or not ps_lines:
+            await ctx.error(f"Cannot find process ID for package '{package_or_pid}'. Is the app running?")
             return ""
 
-        # Try to extract PID from ps output
-        # Typical format: USER PID PPID VSIZE RSS WCHAN PC NAME
-        parts = ps_result.strip().split()
-        if len(parts) < 2:
-            await ctx.error(f"Unexpected ps output format: {ps_result}")
+        # Extract PID from the first matching line of ps output
+        # Typical format from `ps -A -o PID,CMD`: "  1234 com.example.app"
+        first_match = ps_lines[0].strip()
+        parts = first_match.split(None, 1)  # Split only on the first whitespace
+        if len(parts) < 2 or not parts[0].isdigit():
+            await ctx.error(f"Unexpected ps output format when searching for PID: '{first_match}'")
             return ""
-        pid = parts[1]
-    else:
-        parts = pid_result.strip().split()
-        if not parts:
-            await ctx.error(f"Unexpected pidof output format: {pid_result}")
-            return ""
-        pid = parts[0]  # Take the first PID if multiple are returned
+        pid = parts[0]
 
-    await ctx.info(f"Found process ID: {pid}")
+    elif len(pids) > 1:
+        await ctx.warning(f"Package '{package_or_pid}' has multiple PIDs: {pids}. Using the first one: {pids[0]}.")
+        pid = pids[0]
+    else:  # Exactly one PID found
+        pid = pids[0]
+
+    if not pid.isdigit():  # Final sanity check
+        await ctx.error(f"Failed to resolve a valid PID for '{package_or_pid}'. Found: '{pid}'")
+        return ""
+
+    await ctx.info(f"Found process ID: {pid} for package '{package_or_pid}'.")
     return pid
 
 
 async def _generate_heap_dump_paths(
     device: Device,
-    app_name: str,
+    app_name_or_pid: str,
     dump_type: str,
-    output_path: str,
+    user_output_path: str,
     ctx: Context,
-) -> tuple[str, str]:
+) -> tuple[str, str, tempfile.TemporaryDirectory | None]:
     """
     Generate paths for heap dumps on device and local machine.
 
     Args:
         device: The device to query
-        app_name: Application name or PID
-        dump_type: Type of heap dump (java or native)
-        output_path: User-specified output path or empty string
+        app_name_or_pid: Application name or PID string for filename
+        dump_type: Type of heap dump ('java' or 'native')
+        user_output_path: User-specified output path (can be empty)
         ctx: MCP context for sending messages
 
     Returns:
-        Tuple of (device_path, local_path)
+        Tuple of (device_path, local_host_path, temp_dir_obj)
     """
-    # Create a timestamp for the filename
-    timestamp = await device.run_shell("date +%Y%m%d_%H%M%S")
-    timestamp = timestamp.strip()
+    timestamp = (await device.run_shell("date +%Y%m%d_%H%M%S")).strip()
 
-    # Set default output path if not provided
-    if not output_path:
-        # Create a temporary directory
-        temp_dir = tempfile.mkdtemp(prefix="droidmind_heapdump_")
-        filename = f"{app_name}_{dump_type}_heap_{timestamp}.hprof"
-        output_path = os.path.join(temp_dir, filename)
-        await ctx.info(f"No output path specified, saving to temporary file: {output_path}")
+    # Sanitize app_name_or_pid for use in filename
+    safe_app_name = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in app_name_or_pid)
 
-    # Ensure the output directory exists
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    filename_base = f"{safe_app_name}_{dump_type}_heap_{timestamp}"
+    device_dump_filename = f"{filename_base}.hprof"  # Standard extension for heap dumps
+    device_dump_path = f"/data/local/tmp/{device_dump_filename}"
 
-    # Determine the device-side dump path
-    device_dump_path = f"/data/local/tmp/{app_name}_{dump_type}_heap_{timestamp}.hprof"
+    actual_local_host_path = user_output_path
+    temp_dir_obj = None
 
-    return device_dump_path, output_path
+    if not actual_local_host_path:
+        temp_dir_obj = tempfile.TemporaryDirectory(prefix="droidmind_heapdump_")
+        actual_local_host_path = os.path.join(temp_dir_obj.name, device_dump_filename)
+        await ctx.info(f"No output path specified, saving to temporary file: {actual_local_host_path}")
+    else:
+        # If user provided a directory, append our filename. If a file, use it.
+        if os.path.isdir(actual_local_host_path):
+            actual_local_host_path = os.path.join(actual_local_host_path, device_dump_filename)
+        os.makedirs(os.path.dirname(os.path.abspath(actual_local_host_path)), exist_ok=True)
+
+    # Return temp_dir_obj as well so it can be cleaned up if created
+    return device_dump_path, actual_local_host_path, temp_dir_obj
 
 
-@mcp.tool()
-async def dump_heap(
+async def _dump_heap_impl(
     serial: str,
     ctx: Context,
     package_or_pid: str,
@@ -250,135 +282,179 @@ async def dump_heap(
     native: bool = False,
     timeout_seconds: int = 120,
 ) -> str:
-    """
-    Capture a heap dump from a running process on the device.
-
-    Heap dumps are useful for diagnosing memory issues, leaks, and understanding
-    object relationships in running applications.
-
-    Args:
-        serial: Device serial number
-        ctx: MCP context
-        package_or_pid: App package name or process ID to dump
-        output_path: Where to save the heap dump (leave empty for default location)
-        native: Whether to capture a native heap dump (vs Java heap)
-        timeout_seconds: Maximum time to wait for the heap dump to complete (in seconds)
-
-    Returns:
-        Path to the saved heap dump or an error message
-    """
+    """Implementation for capturing a heap dump from a running process on the device."""
+    temp_dir_for_local_dump = None
     try:
-        # Get the device
         device = await get_device_manager().get_device(serial)
         if not device:
             await ctx.error(f"Device {serial} not connected or not found.")
             return f"Error: Device {serial} not found."
 
-        # Log the operation with medium risk level
         log_command_execution("dump_heap", RiskLevel.MEDIUM)
 
-        # Resolve PID if a package name was provided
         pid = await _resolve_pid(device, ctx, package_or_pid)
         if not pid:
-            return f"Error: Cannot find process for {package_or_pid}. Make sure the app is running."
+            return f"Error: Cannot find process for '{package_or_pid}'. Make sure the app is running."
 
-        # Determine app name for file naming
-        app_name = package_or_pid if not package_or_pid.isdigit() else f"pid_{pid}"
+        app_name_for_file = package_or_pid if not package_or_pid.isdigit() else f"pid_{pid}"
         dump_type = "native" if native else "java"
 
-        # Generate paths for the heap dump
-        device_dump_path, output_path = await _generate_heap_dump_paths(device, app_name, dump_type, output_path, ctx)
+        device_dump_path, local_final_path, temp_dir_for_local_dump = await _generate_heap_dump_paths(
+            device, app_name_for_file, dump_type, output_path, ctx
+        )
 
-        # Inform the user
-        await ctx.info(f"📊 Capturing {dump_type} heap dump for process {pid}...")
+        await ctx.info(f"📊 Capturing {dump_type} heap dump for process {pid} ({package_or_pid})...")
+        await ctx.info(f"Device path: {device_dump_path}, Local path: {local_final_path}")
         await ctx.info("This may take some time depending on the process size.")
 
-        # Choose the appropriate heap dump command
+        dump_cmd = f"am dumpheap {'-n ' if native else ''}{pid} {device_dump_path}"
+
         if native:
-            # Native heap dump using am dumpheap (requires root on most devices)
-            dump_cmd = f"am dumpheap -n {pid} {device_dump_path}"
-            is_root_required = True
-        else:
-            # Java heap dump
-            dump_cmd = f"am dumpheap {pid} {device_dump_path}"
-            is_root_required = False
-
-        # Check for root if needed
-        if is_root_required:
-            root_test = await device.run_shell("whoami")
-            if "root" not in root_test:
-                await ctx.warning("Native heap dumps typically require root access.")
-                # We'll still try the command but warn the user
-
-        # Execute the heap dump
-        await ctx.info(f"Running command: {dump_cmd}")
-        try:
-            result = await asyncio.wait_for(device.run_shell(dump_cmd), timeout=timeout_seconds)
-
-            # Check if dump succeeded
-            file_check = await device.run_shell(f"ls -la {device_dump_path}")
-            if "No such file" in file_check:
-                await ctx.error("Heap dump file was not created on the device")
-                return f"Failed to create heap dump. Command output: {result}"
-
-            # Get file size
-            size_parts = file_check.split()
-            try:
-                # Expected format: "-rw-r--r-- 1 shell shell 12345678 YYYY-MM-DD HH:MM filename"
-                file_size = int(size_parts[4]) if len(size_parts) >= 5 else 0
-                file_size_mb = file_size / (1024 * 1024)
-                await ctx.info(f"Heap dump created on device: {device_dump_path} ({file_size_mb:.2f} MB)")
-            except (IndexError, ValueError):
-                await ctx.info(f"Heap dump created on device, size unknown: {device_dump_path}")
-
-            # Pull the file from the device
-            await ctx.info(f"Pulling heap dump from device to {output_path}...")
-            pull_result = await device.pull_file(device_dump_path, output_path)
-
-            # Clean up the file on the device
-            await ctx.info("Cleaning up temporary file from device...")
-            await device.run_shell(f"rm {device_dump_path}")
-
-            # Verify the local file exists
-            if not os.path.exists(output_path):
-                await ctx.error("Failed to pull heap dump from device to local machine")
-                return f"Failed to retrieve heap dump: {pull_result}"
-
-            # Report success
-            local_size = os.path.getsize(output_path)
-            local_size_mb = local_size / (1024 * 1024)
-
-            await ctx.info(f"✅ Heap dump captured successfully! File size: {local_size_mb:.2f} MB")
-
-            # Return the path and usage instructions
-            if native:
-                # Native heap instructions
-                return (
-                    f"Native heap dump saved to: {output_path} ({local_size_mb:.2f} MB)\n\n"
-                    "To analyze this native heap dump:\n"
-                    "1. Use the Android Studio Memory Profiler\n"
-                    "2. Or use 'heapanalyzer' from the Android SDK\n"
-                    "3. For lower-level analysis, tools like 'hprof-conv' and MAT can be used"
+            is_root = "root" in (await device.run_shell("whoami")).lower()
+            if not is_root:
+                await ctx.warning(
+                    "Native heap dumps often require root access. The command will be attempted, "
+                    "but may fail if root is not available or if SELinux policies prevent it."
                 )
 
-            # Java heap instructions
-            return (
-                f"Java heap dump saved to: {output_path} ({local_size_mb:.2f} MB)\n\n"
-                "To analyze this Java heap dump:\n"
-                "1. Convert the file using: `hprof-conv {output_path} converted.hprof`\n"
-                "2. Open in Android Studio's Memory Profiler\n"
-                "3. Or use Eclipse Memory Analyzer (MAT) after conversion\n"
-                "4. For CLI analysis: `python -m objgraph {output_path}`"
+        await ctx.info(f"Executing heap dump command on device: {dump_cmd}")
+        try:
+            # Execute the heap dump command
+            dump_stdout = await asyncio.wait_for(device.run_shell(dump_cmd), timeout=timeout_seconds + 5)
+
+            # Check if dump file was created on device
+            # 'ls -d' checks existence of specific file/dir, returns itself if exists
+            file_check_cmd = f"ls -d {device_dump_path}"
+            file_check_result = await device.run_shell(file_check_cmd)
+
+            if device_dump_path not in file_check_result:
+                await ctx.error(f"Heap dump file was not created on device at {device_dump_path}.")
+                await ctx.info(f"Output from dump command: {dump_stdout}")
+                return f"Failed to create heap dump on device. ADB command output: {dump_stdout or '(no output)'}"
+
+            # Get file size (optional, for info)
+            size_check_cmd = f"ls -l {device_dump_path} | awk '{{print $5}}'"
+            file_size_str = (await device.run_shell(size_check_cmd)).strip()
+            if file_size_str.isdigit():
+                file_size_mb = int(file_size_str) / (1024 * 1024)
+                await ctx.info(f"Heap dump created on device: {device_dump_path} ({file_size_mb:.2f} MB).")
+            else:
+                await ctx.info(f"Heap dump created on device: {device_dump_path} (size unknown).")
+
+            await ctx.info(f"Pulling heap dump from {device_dump_path} to {local_final_path}...")
+            pull_success = await device.pull_file(device_dump_path, local_final_path)
+
+            if not pull_success or not os.path.exists(local_final_path):
+                await ctx.error(f"Failed to pull heap dump from device to {local_final_path}.")
+                return f"Failed to retrieve heap dump from device path {device_dump_path}."
+
+            local_size_mb = os.path.getsize(local_final_path) / (1024 * 1024)
+            await ctx.info(
+                f"✅ Heap dump captured successfully to {local_final_path}! File size: {local_size_mb:.2f} MB"
             )
 
+            result_message_parts = [
+                f"{'Native' if native else 'Java'} heap dump saved to: `{local_final_path}` ({local_size_mb:.2f} MB)",
+                "",
+                "To analyze this heap dump:",
+            ]
+            if native:
+                result_message_parts.extend(
+                    [
+                        "1. Use Android Studio Memory Profiler (File > Open).",
+                        "2. Or use `pprof` (common for native C++ dumps) or Google's `heapprof` tools.",
+                    ]
+                )
+            else:
+                result_message_parts.extend(
+                    [
+                        (
+                            f'1. Convert using `hprof-conv "{local_final_path}" '
+                            f'"converted_{os.path.basename(local_final_path)}"`.'
+                        ),
+                        "2. Open the converted file in Android Studio Memory Profiler or Eclipse MAT.",
+                    ]
+                )
+            return "\\n".join(result_message_parts)
+
         except TimeoutError:
-            await ctx.error(f"Heap dump timed out after {timeout_seconds} seconds")
+            await ctx.error(f"Heap dump command timed out after {timeout_seconds} seconds on device.")
             return (
-                f"Heap dump capture timed out after {timeout_seconds} seconds. "
-                "Try again with a longer timeout value or a smaller process."
+                f"Heap dump capture timed out after {timeout_seconds} seconds during device-side operation. "
+                "Try with a longer timeout or ensure the app is stable."
             )
+        finally:
+            # Clean up the file on the device regardless of pull success to free space
+            if device_dump_path and await device.file_exists(device_dump_path):
+                await ctx.info(f"Cleaning up temporary file from device: {device_dump_path}")
+                await device.run_shell(f"rm {device_dump_path}")
+            if temp_dir_for_local_dump:
+                temp_dir_for_local_dump.cleanup()
 
     except Exception as e:
         logger.exception("Error dumping heap: %s", e)
-        await ctx.error(f"Error dumping heap: {e}")
-        return f"Error: {e}"
+        await ctx.error(f"Error dumping heap: {e!s}")
+        if temp_dir_for_local_dump:
+            temp_dir_for_local_dump.cleanup()
+        return f"Error: {e!s}"
+
+
+@mcp.tool()
+async def android_diag(
+    ctx: Context,
+    serial: str,
+    action: DiagAction,
+    output_path: str = "",
+    include_screenshots: bool = True,
+    package_or_pid: str | None = None,
+    native: bool = False,
+    timeout_seconds: int = 0,
+) -> str:
+    """
+    Perform diagnostic operations like capturing bug reports or heap dumps.
+
+    Args:
+        ctx: MCP Context.
+        serial: Device serial number.
+        action: The diagnostic action to perform.
+        output_path: Optional. Path to save the output file.
+                     For bugreport: host path for adb to write the .zip. If empty, a temp file is used & summarized.
+                     For dump_heap: local path to save the .hprof. If empty, a temp file is used.
+        include_screenshots: For CAPTURE_BUGREPORT. Default True.
+        package_or_pid: For DUMP_HEAP. App package name or process ID.
+        native: For DUMP_HEAP. True for native (C/C++) heap, False for Java. Default False.
+        timeout_seconds: Max time for the operation. If 0, action-specific defaults are used
+                         (bugreport: 300s, dump_heap: 120s).
+
+    Returns:
+        A string message indicating the result or path to the output.
+    """
+    if action == DiagAction.CAPTURE_BUGREPORT:
+        final_timeout = timeout_seconds if timeout_seconds > 0 else 300
+        return await _capture_bugreport_impl(
+            serial=serial,
+            ctx=ctx,
+            output_path=output_path,
+            include_screenshots=include_screenshots,
+            timeout_seconds=final_timeout,
+        )
+    if action == DiagAction.DUMP_HEAP:
+        if not package_or_pid:
+            msg = "Error: 'package_or_pid' is required for dump_heap action."
+            await ctx.error(msg)
+            return msg
+        final_timeout = timeout_seconds if timeout_seconds > 0 else 120
+        return await _dump_heap_impl(
+            serial=serial,
+            ctx=ctx,
+            package_or_pid=package_or_pid,
+            output_path=output_path,
+            native=native,
+            timeout_seconds=final_timeout,
+        )
+
+    # Should not be reached
+    unhandled_action_msg = f"Error: Unhandled diagnostic action '{action}'."
+    logger.error(unhandled_action_msg)
+    await ctx.error(unhandled_action_msg)
+    return unhandled_action_msg

@@ -33,6 +33,22 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### Diagnostics & Logging
 
+- **`android-diag`**: Performs diagnostic operations like capturing bug reports or heap dumps.
+  - `serial`: Device serial number.
+  - `action`: Specifies the diagnostic operation. One of:
+    - `capture_bugreport`: Captures a comprehensive bug report from the device.
+        - Optional: `output_path` (host path for adb to write .zip, temp if empty), `include_screenshots` (default `True`), `timeout_seconds` (default `300s`).
+    - `dump_heap`: Captures a heap dump from a running process.
+        - Requires: `package_or_pid` (app package name or process ID).
+        - Optional: `output_path` (local path for .hprof, temp if empty), `native` (default `False` for Java heap), `timeout_seconds` (default `120s`).
+  - `ctx`: MCP Context.
+  - `output_path` (optional): Path for output file. See action specifics.
+  - `include_screenshots` (optional): For `capture_bugreport`.
+  - `package_or_pid` (optional): For `dump_heap`.
+  - `native` (optional): For `dump_heap`.
+  - `timeout_seconds` (optional): Override default timeouts. If 0, action-specific defaults are used.
+  - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/diagnostics.py` for detailed argument requirements.
+
 - **`android-log`**: Performs various log retrieval operations on an Android device.
   - `serial`: Device serial number.
   - `action`: Specifies the operation. One of:
@@ -55,12 +71,6 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
   - `format_type` (optional): Output format for `get_device_logcat`.
   - `max_size` (optional): Max output size for `get_device_logcat`.
   - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/logs.py` for detailed argument requirements.
-
-- **`capture_bugreport`**: Captures a comprehensive bug report from the device.
-  - `serial`: Device serial number.
-  - `output_path` (optional): Local path to save the bug report zip.
-  - `include_screenshots` (optional): Default `True`.
-  - `timeout_seconds` (optional): Default `300`.
 
 ### File System Operations
 
