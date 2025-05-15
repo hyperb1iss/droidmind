@@ -18,7 +18,7 @@ from droidmind.log import logger
 
 
 class AppAction(str, Enum):
-    """Defines the available sub-actions for the 'app-operations' tool."""
+    """Defines the available sub-actions for the 'android-app' tool."""
 
     INSTALL_APP = "install_app"
     UNINSTALL_APP = "uninstall_app"
@@ -699,7 +699,7 @@ async def _get_app_info_impl(serial: str, package: str, ctx: Context) -> str:
         return f"Error retrieving app info: {e!s}"
 
 
-@mcp.tool(name="app-operations")
+@mcp.tool(name="android-app")
 async def app_operations(
     serial: str,
     action: AppAction,

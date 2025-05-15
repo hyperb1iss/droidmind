@@ -12,7 +12,7 @@ from droidmind.log import logger
 from droidmind.security import RiskLevel, assess_command_risk
 
 
-@mcp.tool()
+@mcp.tool("android-shell")
 async def shell_command(
     serial: str, command: str, ctx: Context, max_lines: int | None = 1000, max_size: int | None = 100000
 ) -> str:

@@ -136,7 +136,7 @@ async def _start_intent_impl(
         return f"Error: {e!s}"
 
 
-@mcp.tool()
+@mcp.tool(name="android-ui")
 async def android_ui(  # pylint: disable=too-many-arguments
     ctx: Context,
     serial: str,

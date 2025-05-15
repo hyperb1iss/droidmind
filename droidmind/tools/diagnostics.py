@@ -399,7 +399,7 @@ async def _dump_heap_impl(
         return f"Error: {e!s}"
 
 
-@mcp.tool()
+@mcp.tool(name="android-diag")
 async def android_diag(
     ctx: Context,
     serial: str,

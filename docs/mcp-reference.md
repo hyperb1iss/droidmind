@@ -106,7 +106,7 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### Application Management
 
-- **`app-operations`**: Performs various application management operations on an Android device.
+- **`android-app`**: Performs various application management operations on an Android device.
   - `serial`: Device serial number.
   - `action`: Specifies the operation. One of:
     - `install_app`: Installs an APK on the device.
@@ -144,7 +144,7 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
 
 ### Shell Command Execution
 
-- **`shell_command`**: Executes an arbitrary shell command on the device.
+- **`android-shell`**: Executes an arbitrary shell command on the device.
   - `serial`: Device serial number.
   - `command`: The shell command string.
   - `max_lines` (optional): Limit output lines.
@@ -182,7 +182,7 @@ Below is a categorized list of DroidMind tools. For detailed parameters, refer t
   - `extras` (optional): Dictionary for `start_intent`.
   - **Note**: Refer to the tool's main Python docstring in `droidmind/tools/ui.py` for the most detailed argument requirements for each `action`.
 
-- **`screenshot`**: Captures a screenshot from the device.
+- **`android-screenshot`**: Captures a screenshot from the device.
   - `serial`: Device serial number.
   - `quality` (optional): JPEG quality (1-100, default 75).
 

@@ -14,7 +14,7 @@ from droidmind.devices import get_device_manager
 from droidmind.log import logger
 
 
-@mcp.tool()
+@mcp.tool(name="android-screenshot")
 async def screenshot(serial: str, ctx: Context, quality: int = 75) -> Image:
     """
     Get a screenshot from a device.
