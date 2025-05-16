@@ -1,4 +1,4 @@
-# ✨ Welcome to DroidMind 🤖
+# 🤖 DroidMind 🧠
 
 <p align="center">
   <img src="assets/images/logo_neon_glow_icon.png" alt="DroidMind Logo" width="180" />

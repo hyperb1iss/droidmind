@@ -1,6 +1,6 @@
-# ✨ DroidMind 🤖
-
 <div align="center">
+
+# 🤖 DroidMind 🧠
 
 <img src="docs/assets/images/logo_neon_glow_icon.png" alt="DroidMind Logo" width="180" />
 
@@ -39,7 +39,26 @@ For a detailed list of capabilities, see the **[User Manual](docs/user_manual/in
 
 For the fastest way to integrate DroidMind with an MCP-compatible IDE (like Cursor), you can configure it to run DroidMind directly from its GitHub repository using `uvx`. This method **does not require you to manually clone or install DroidMind first**.
 
-Your IDE will be configured to launch DroidMind on demand. Full instructions for this setup are in the **[Quick Start Guide](docs/quickstart.md#1-configure-your-ide-to-run-droidmind-via-uvx)**, which shows the necessary `mcp.json` configuration.
+Add the following to your IDE's MCP configuration (e.g., `.cursor/mcp.json` for Cursor):
+
+```json
+{
+  "mcpServers": {
+    "droidmind": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/hyperb1iss/droidmind",
+        "droidmind",
+        "--transport",
+        "stdio" // The default and preferred mode for most IDE integrations
+      ]
+    }
+  }
+}
+```
+
+Your IDE will be configured to launch DroidMind on demand. Full instructions for this setup are in the **[Quick Start Guide](docs/quickstart.md#1-configure-your-ide-to-run-droidmind-via-uvx)**.
 
 ### Prerequisites
 
