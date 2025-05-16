@@ -11,6 +11,7 @@
 [![Type Check](https://img.shields.io/badge/type_check-pyright-FFBF00.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://github.com/microsoft/pyright)
 [![MCP](https://img.shields.io/badge/protocol-MCP-E6E6FA.svg?style=for-the-badge&logo=anthropic&logoColor=white)](https://modelcontextprotocol.io/)
 [![Android](https://img.shields.io/badge/platform-android-A4C639.svg?style=for-the-badge&logo=android&logoColor=white)](https://www.android.com/)
+[![Docs](https://img.shields.io/badge/docs-online-FF9E80.svg?style=for-the-badge&logo=gitbook&logoColor=white)](https://hyperbliss.github.io/droidmind/)
 
 **Control Android devices with AI through the Model Context Protocol**
 
