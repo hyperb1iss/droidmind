@@ -2,11 +2,15 @@
 
 <div align="center">
 
+<img src="docs/assets/images/logo_neon_glow_icon.png" alt="DroidMind Logo" width="180" />
+
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-9D00FF.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-Apache_2.0-FF00FF.svg?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/status-active_development-39FF14.svg?style=for-the-badge)](docs/plan.md)
-[![Code Style](https://img.shields.io/badge/code_style-ruff-00FFFF.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
-[![Type Check](https://img.shields.io/badge/type_check-pyright-FFBF00.svg?style=for-the-badge)](https://github.com/microsoft/pyright)
+[![License](https://img.shields.io/badge/license-Apache_2.0-FF00FF.svg?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
+[![Status](https://img.shields.io/badge/status-active_development-39FF14.svg?style=for-the-badge&logo=githubactions&logoColor=white)](docs/plan.md)
+[![Code Style](https://img.shields.io/badge/code_style-ruff-00FFFF.svg?style=for-the-badge&logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![Type Check](https://img.shields.io/badge/type_check-pyright-FFBF00.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://github.com/microsoft/pyright)
+[![MCP](https://img.shields.io/badge/protocol-MCP-E6E6FA.svg?style=for-the-badge&logo=anthropic&logoColor=white)](https://modelcontextprotocol.io/)
+[![Android](https://img.shields.io/badge/platform-android-A4C639.svg?style=for-the-badge&logo=android&logoColor=white)](https://www.android.com/)
 
 **Control Android devices with AI through the Model Context Protocol**
 

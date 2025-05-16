@@ -120,7 +120,6 @@ nav:
     - 9. Example AI Queries: user_manual/example_queries.md
   - MCP Reference:
     - Tool Overview: mcp-reference.md
-  - Project Plan: plan.md
   - License: license.md # Assuming you have a LICENSE.md
 
 # Extra CSS/JS (if needed)

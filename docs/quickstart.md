@@ -25,7 +25,7 @@ Your IDE will look for a configuration file (e.g., `.cursor/mcp.json` for Cursor
         "git+https://github.com/hyperb1iss/droidmind",
         "droidmind",
         "--transport",
-        "stdio" // Or "sse" if your specific IDE/client setup requires it
+        "stdio" // The default and preferred mode for most IDE integrations
       ]
     }
   }
@@ -35,7 +35,7 @@ Your IDE will look for a configuration file (e.g., `.cursor/mcp.json` for Cursor
 - **`command: "uvx"`**: Tells the IDE to use `uvx`.
 - **`"--from", "git+https://github.com/hyperb1iss/droidmind"`**: `uvx` will fetch DroidMind directly from GitHub.
 - **`"droidmind"`**: The package name to run.
-- **`"--transport", "stdio"`**: Specifies the communication protocol. `stdio` is common for direct IDE integrations. Some clients might require `sse` (e.g., `sse://localhost:4256/sse`), in which case you'd adjust the port and ensure it's free. If using `sse`, you might also need to specify `"--host", "localhost"` and `"--port", "4256"` in the args.
+- **`"--transport", "stdio"`**: Specifies the communication protocol. `stdio` is the default and preferred mode for direct IDE integrations.
 
 Once configured, your IDE should automatically start DroidMind when needed. You typically won't see a separate terminal window for DroidMind, as the IDE manages it in the background.
 
@@ -45,7 +45,7 @@ Once configured, your IDE should automatically start DroidMind when needed. You 
 
 With the `mcp.json` (or equivalent) configured, your AI assistant should automatically discover and connect to DroidMind when it starts up or when you try to use a DroidMind-related tool.
 
-- **No Manual Connection URI Needed (Usually)**: Since the IDE launches DroidMind, the connection is typically handled internally. You usually don't need to manually input an MCP URI like `sse://localhost:4256/sse` if the IDE is managing the server via `stdio` or a predefined SSE configuration within the `args`.
+- **No Manual Connection URI Needed (Usually)**: Since the IDE launches DroidMind, the connection is typically handled internally. You usually don't need to manually input an MCP URI.
 
 - **Instructions for Common Clients**:
 
@@ -53,29 +53,24 @@ With the `mcp.json` (or equivalent) configured, your AI assistant should automat
 
     1. Ensure your project has a `.cursor/mcp.json` file with the DroidMind configuration shown in Step 1.
     2. Restart Cursor or open a new project window.
-    3. Cursor should automatically use `uvx` to run DroidMind when you invoke a command that would use DroidMind's tools.
+    3. Cursor will automatically start DroidMind on startup, making its tools immediately available.
 
   - **Claude Desktop**:
     1. Open Claude Desktop settings (from the main application menu).
     2. Go to `Developer` settings.
     3. Click `Edit Config` to open `claude_desktop_config.json`.
-    4. Add or modify the `mcpServers` section similar to the example in Step 1. Claude Desktop is designed to launch MCP servers itself.
+    4. Add or modify the `mcpServers` section similar to the example below. Claude Desktop is designed to launch MCP servers itself.
        ```json
        {
          "mcpServers": {
-           "droidmind_via_uvx": {
-             // You can name this entry as you like
+           "droidmind": {
              "command": "uvx",
              "args": [
                "--from",
                "git+https://github.com/hyperb1iss/droidmind",
                "droidmind",
                "--transport",
-               "sse", // Claude Desktop typically uses SSE
-               "--host",
-               "localhost",
-               "--port",
-               "4256" // Or another free port
+               "stdio" // Default and preferred for Claude Desktop
              ]
              // Add "workingDirectory": "/path/to/your/droidmind/project" if needed
              // Add "env": { ... } if DroidMind needs specific environment variables
@@ -84,6 +79,19 @@ With the `mcp.json` (or equivalent) configured, your AI assistant should automat
        }
        ```
     5. Restart Claude Desktop. It will attempt to start DroidMind using this configuration.
+
+**Note on SSE Transport (Alternative Method):**
+If you need to use SSE transport instead of stdio (for specific use cases or compatibility reasons):
+
+1. You'll need to run the DroidMind server manually with SSE enabled:
+
+   ```bash
+   uvx --from git+https://github.com/hyperb1iss/droidmind droidmind --transport sse --host localhost --port 4256
+   ```
+
+2. Then configure your AI client to connect to the SSE endpoint (e.g., `sse://localhost:4256/sse`).
+
+This approach requires more manual setup but may be necessary for certain client configurations. See the [Installation Guide](installation.md) for more details on running DroidMind as a standalone server.
 
 After successful connection (which is often automatic with IDE-managed servers), your AI assistant should indicate that DroidMind's tools are available (often indicated by a special icon or prefix in the chat input, or by the AI successfully executing DroidMind commands).
 
