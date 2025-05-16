@@ -1,16 +1,16 @@
 site_name: DroidMind Documentation
-site_url: https://hyperbliss.github.io/droidmind/
+site_url: https://hyperb1iss.github.io/droidmind/
 site_author: Stefanie Jane 🌠
 site_description: >-
   DroidMind - Control Android devices with AI through the Model Context Protocol.
 
 # Repository
-repo_name: hyperbliss/droidmind
-repo_url: https://github.com/hyperbliss/droidmind
+repo_name: hyperb1iss/droidmind
+repo_url: https://github.com/hyperb1iss/droidmind
 edit_uri: "edit/main/docs/"
 
 # Copyright
-copyright: Copyright &copy; 2024 Stefanie Jane Kondik
+copyright: Copyright &copy; 2025 Stefanie Jane
 
 # Theme
 theme:
@@ -148,6 +148,6 @@ watch:
 # extra:
 #   social:
 #     - icon: fontawesome/brands/github 
-#       link: https://github.com/hyperbliss
+#       link: https://github.com/hyperb1iss
 #     - icon: fontawesome/solid/book 
 #       link: https://www.mkdocs.org 

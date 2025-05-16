@@ -7,7 +7,7 @@ Docker provides a convenient way to run DroidMind in a containerized, consistent
 - **Docker**: Ensure Docker Desktop (for Mac/Windows) or Docker Engine (for Linux) is installed and running on your system. [Get Docker](https://docs.docker.com/get-docker/).
 - **DroidMind Source Code**: You'll need the DroidMind source code, specifically the `Dockerfile`, to build the image. If you haven't already, clone the repository:
   ```bash
-  git clone https://github.com/hyperbliss/droidmind.git
+  git clone https://github.com/hyperb1iss/droidmind.git
   cd droidmind
   ```
 

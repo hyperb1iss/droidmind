@@ -55,9 +55,9 @@ dev = [
 sse = ["uvicorn>=0.27.0", "starlette>=0.46.0"]
 
 [project.urls]
-Homepage = "https://github.com/hyperbliss/droidmind"
-Issues = "https://github.com/hyperbliss/droidmind/issues"
-Documentation = "https://github.com/hyperbliss/droidmind#readme"
+Homepage = "https://github.com/hyperb1iss/droidmind"
+Issues = "https://github.com/hyperb1iss/droidmind/issues"
+Documentation = "https://github.com/hyperb1iss/droidmind#readme"
 
 [project.scripts]
 droidmind = "droidmind.server:main"

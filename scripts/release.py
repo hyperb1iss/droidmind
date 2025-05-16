@@ -25,7 +25,7 @@ console = Console()
 
 # Constants
 PROJECT_NAME = "DroidMind"
-REPO_NAME = "hyperbliss/droidmind"
+REPO_NAME = "hyperb1iss/droidmind"
 PROJECT_LINK = f"https://github.com/{REPO_NAME}"
 ISSUE_TRACKER = f"{PROJECT_LINK}/issues"
 

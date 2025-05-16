@@ -203,8 +203,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            hyperbliss/droidmind:latest
-            hyperbliss/droidmind:${{ steps.get_version.outputs.VERSION }}
+            hyperb1iss/droidmind:latest
+            hyperb1iss/droidmind:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ steps.get_version.outputs.VERSION }}
           labels: |
