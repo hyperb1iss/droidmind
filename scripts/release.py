@@ -356,7 +356,6 @@ def main() -> None:
     commit_and_push(new_version)
 
     print_success(f"\n🎉✨ {PROJECT_NAME} v{new_version} has been successfully released! ✨🎉")
-    print_colored(f"Don't forget to create a release on GitHub: {PROJECT_LINK}/releases/new", COLOR_STEP)
 
 
 if __name__ == "__main__":

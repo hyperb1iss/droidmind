@@ -147,15 +147,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          # cache-dependency-path will still cache dependencies installed by uv
 
       - name: ⚡ Install uv Build System
         uses: astral-sh/setup-uv@v6
 
       - name: 🛠️ Build Python Package
         run: |
-          uv pip install build
-          uv run python -m build
+          uv pip install --system build
+          python -m build
 
       - name: 🚀 Publish to PyPI via Trusted Publisher
         uses: pypa/gh-action-pypi-publish@release/v1
