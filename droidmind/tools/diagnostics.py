@@ -24,48 +24,52 @@ class DiagAction(Enum):
     DUMP_HEAP = "dump_heap"
 
 
-async def _capture_bugreport_impl(
-    serial: str, ctx: Context, output_path: str = "", include_screenshots: bool = True, timeout_seconds: int = 300
+async def _analyze_temp_bugreport(serial: str, ctx: Context, actual_output_path: str, file_size_mb: float) -> str:
+    """Analyzes a temporary bug report file and returns a summary."""
+    await ctx.info("Analyzing bug report contents (summary)...")
+    # Using a raw string for the unzip command pattern to avoid issues with backslashes
+    zip_list_cmd = f'unzip -l "{actual_output_path}"'
+    proc = await asyncio.create_subprocess_shell(
+        zip_list_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    zip_stdout, zip_stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        await ctx.warning(f"Could not list contents of temporary bugreport zip: {zip_stderr.decode().strip()}")
+        zip_contents_summary = "(Could not retrieve zip contents)"
+    else:
+        zip_contents_summary = zip_stdout.decode().strip()
+
+    summary = [
+        f"# Bug Report for {serial}",
+        f"Bug report ({file_size_mb:.2f} MB) was processed from a temporary location.",
+        f"Original temporary path: `{actual_output_path}`",
+        "",
+        "## Bug Report Contents (Summary)",
+        "```",
+        zip_contents_summary[:2000] + ("..." if len(zip_contents_summary) > 2000 else ""),
+        "```",
+        "",
+        "Note: The temporary file has been cleaned up. If you need to keep the bug report, specify an 'output_path'.",
+    ]
+    return "\\n".join(summary)
+
+
+async def _execute_bugreport_core(
+    device: Device,
+    serial: str,
+    ctx: Context,
+    bugreport_cmd_arg: str,
+    actual_output_path: str,
+    timeout_seconds: int,
+    is_temporary: bool,
 ) -> str:
-    """Implementation for capturing a bug report from a device."""
+    """Core logic for executing adb bugreport, handling results, and optionally summarizing."""
+    await ctx.info(f"Running command: adb -s {serial} {bugreport_cmd_arg} {actual_output_path}")
+    process = None  # Define process to ensure it's available in except block
     try:
-        # Get the device
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            await ctx.error(f"Device {serial} not connected or not found.")
-            return f"Error: Device {serial} not found."
-
-        # Log the operation with medium risk level
-        log_command_execution("capture_bugreport", RiskLevel.MEDIUM)
-
-        # Inform the user
-        await ctx.info(f"🔍 Capturing bug report from device {serial}...")
-        await ctx.info("This may take a few minutes depending on the device's state.")
-
-        if include_screenshots:
-            await ctx.info("Including screenshots in the bug report.")
-            bugreport_cmd_arg = "bugreport"
-        else:
-            await ctx.info("Excluding screenshots to reduce bug report size.")
-            bugreport_cmd_arg = "bugreportz"
-
-        # Create a temporary directory if no output path is specified
-        temp_dir_obj = None
-        actual_output_path = output_path
-
-        if not actual_output_path:
-            temp_dir_obj = tempfile.TemporaryDirectory(prefix="droidmind_bugreport_")
-            actual_output_path = os.path.join(
-                temp_dir_obj.name, f"bugreport_{serial}_{await device.run_shell('date +%Y%m%d_%H%M%S')}.zip"
-            )
-            await ctx.info(f"No output path specified, saving to temporary file: {actual_output_path}")
-        else:
-            # Ensure the output directory exists if a path is provided
-            os.makedirs(os.path.dirname(os.path.abspath(actual_output_path)), exist_ok=True)
-
-        # Run the bugreport command and save to the specified path
-        await ctx.info(f"Running command: adb -s {serial} {bugreport_cmd_arg} {actual_output_path}")
-
         process = await asyncio.create_subprocess_exec(
             "adb",
             "-s",
@@ -76,82 +80,94 @@ async def _capture_bugreport_impl(
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Set up a timeout
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
-            stderr_str = stderr.decode().strip() if stderr else ""
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
+        stderr_str = stderr.decode().strip() if stderr else ""
 
-            if process.returncode != 0:
-                await ctx.error(f"Bug report failed with exit code {process.returncode}")
-                await ctx.error(f"Error: {stderr_str}")
-                if temp_dir_obj:
-                    temp_dir_obj.cleanup()
-                return f"Failed to capture bug report: {stderr_str}"
+        if process.returncode != 0:
+            await ctx.error(f"Bug report failed with exit code {process.returncode}")
+            await ctx.error(f"Error: {stderr_str}")
+            return f"Failed to capture bug report: {stderr_str}"
 
-            if not os.path.exists(actual_output_path):
-                await ctx.error("Bug report file was not created")
-                if temp_dir_obj:
-                    temp_dir_obj.cleanup()
-                return "Failed to capture bug report: No output file was created."
+        if not os.path.exists(actual_output_path):
+            await ctx.error("Bug report file was not created")
+            return "Failed to capture bug report: No output file was created."
 
-            file_size = os.path.getsize(actual_output_path)
-            file_size_mb = file_size / (1024 * 1024)
-            await ctx.info(f"✅ Bug report captured successfully! File size: {file_size_mb:.2f} MB")
+        file_size = os.path.getsize(actual_output_path)
+        file_size_mb = file_size / (1024 * 1024)
+        await ctx.info(f"✅ Bug report captured successfully! File size: {file_size_mb:.2f} MB")
 
-            if not temp_dir_obj:
-                return f"Bug report saved to: {actual_output_path} ({file_size_mb:.2f} MB)"
+        if not is_temporary:
+            return f"Bug report saved to: {actual_output_path} ({file_size_mb:.2f} MB)"
 
-            # If we created a temp file, analyze the bug report and return a summary
-            await ctx.info("Analyzing bug report contents (summary)...")
-            zip_list_cmd = f'unzip -l \\"{actual_output_path}\\"'
-            proc = await asyncio.create_subprocess_shell(
-                zip_list_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            zip_stdout, _ = await proc.communicate()
-            zip_contents_summary = zip_stdout.decode().strip()
+        # Analyze and summarize the temporary bug report
+        return await _analyze_temp_bugreport(serial, ctx, actual_output_path, file_size_mb)
 
-            summary = [
-                f"# Bug Report for {serial}",
-                f"Temporary file saved to: `{actual_output_path}` ({file_size_mb:.2f} MB)",
-                "",
-                "## Bug Report Contents (Summary)",
-                "```",
-                zip_contents_summary[:2000] + ("..." if len(zip_contents_summary) > 2000 else ""),
-                "```",
-                "",
-                "To extract specific information from this bug report, you can use:",
-                f'* `unzip -o \\"{actual_output_path}\\" -d <extract_dir>` to extract all files',
-                (
-                    f'* `unzip -o \\"{actual_output_path}\\" bugreport-*.txt -d <extract_dir>` '
-                    "to extract just the main report"
-                ),
-                "",
-                "Note: This is a temporary file and will be cleaned up.",
-            ]
-            final_summary = "\\n".join(summary)
-            temp_dir_obj.cleanup()
-            return final_summary
+    except TimeoutError:
+        if process and process.returncode is None:  # Process is still running
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except TimeoutError:
+                process.kill()
+            except ProcessLookupError:  # pragma: no cover
+                pass  # Process already ended
+            except Exception:  # pragma: no cover
+                logger.exception("Error terminating bugreport process during timeout.")
+        await ctx.error(f"Bug report timed out after {timeout_seconds} seconds")
+        return f"Bug report capture timed out after {timeout_seconds} seconds. Try again with a longer timeout value."
 
-        except TimeoutError:
-            if process and process.returncode is None:
-                try:
-                    process.terminate()
-                    await asyncio.wait_for(process.wait(), timeout=5)
-                except TimeoutError:
-                    process.kill()
-                except ProcessLookupError:
-                    pass
-            await ctx.error(f"Bug report timed out after {timeout_seconds} seconds")
-            if temp_dir_obj:
-                temp_dir_obj.cleanup()
-            return (
-                f"Bug report capture timed out after {timeout_seconds} seconds. Try again with a longer timeout value."
-            )
-        finally:
-            if temp_dir_obj and os.path.exists(temp_dir_obj.name):
-                temp_dir_obj.cleanup()
+
+async def _execute_bugreport_temp(
+    device: Device, serial: str, ctx: Context, bugreport_cmd_arg: str, timeout_seconds: int
+) -> str:
+    """Handles bug report capture to a temporary directory and summarizes."""
+    timestamp = (await device.run_shell("date +%Y%m%d_%H%M%S")).strip()
+    with tempfile.TemporaryDirectory(prefix="droidmind_bugreport_") as temp_dir_name:
+        filename = f"bugreport_{serial}_{timestamp}.zip"
+        actual_output_path = os.path.join(temp_dir_name, filename)
+        await ctx.info(
+            f"No output path specified; bug report will be summarized from temporary file: {actual_output_path}"
+        )
+
+        return await _execute_bugreport_core(
+            device, serial, ctx, bugreport_cmd_arg, actual_output_path, timeout_seconds, is_temporary=True
+        )
+        # temp_dir_name is cleaned up automatically by 'with' statement
+
+
+async def _capture_bugreport_impl(
+    serial: str, ctx: Context, output_path: str = "", include_screenshots: bool = True, timeout_seconds: int = 300
+) -> str:
+    """Implementation for capturing a bug report from a device."""
+    try:
+        device = await get_device_manager().get_device(serial)
+        if not device:
+            await ctx.error(f"Device {serial} not connected or not found.")
+            return f"Error: Device {serial} not found."
+
+        log_command_execution("capture_bugreport", RiskLevel.MEDIUM)
+
+        await ctx.info(f"🔍 Capturing bug report from device {serial}...")
+        await ctx.info("This may take a few minutes depending on the device's state.")
+
+        if include_screenshots:
+            await ctx.info("Including screenshots in the bug report.")
+            bugreport_cmd_arg = "bugreport"
+        else:
+            await ctx.info("Excluding screenshots to reduce bug report size.")
+            bugreport_cmd_arg = "bugreportz"
+
+        if not output_path:
+            # Scenario: Temporary file. This will use 'with' inside the helper.
+            return await _execute_bugreport_temp(device, serial, ctx, bugreport_cmd_arg, timeout_seconds)
+
+        # Scenario: User-specified file.
+        # Ensure the output directory exists if a path is provided
+        abs_output_path = os.path.abspath(output_path)
+        os.makedirs(os.path.dirname(abs_output_path), exist_ok=True)
+        return await _execute_bugreport_core(
+            device, serial, ctx, bugreport_cmd_arg, abs_output_path, timeout_seconds, is_temporary=False
+        )
 
     except Exception as e:
         logger.exception("Error capturing bug report: %s", e)
