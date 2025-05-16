@@ -1,114 +1,186 @@
-name: DroidMind CI/CD
+name: DroidMind CI/CD 🌌
 
 on:
   push:
     branches: [main]
     tags:
-      - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
+      - "v*"
   pull_request:
     branches: [main]
-  workflow_dispatch: # Allow manual triggering
+  workflow_dispatch:
 
 jobs:
-  build-and-test:
+  build-and-test: # 🏗️ Build, Lint & Test 🧪
+    name: 🏗️ Build, Lint & Test 🧪
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: 🛰️ Checkout Repository
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Needed for `softprops/action-gh-release` to generate release notes
 
-      - name: 💿 Set up Python
+      - name: 🐍 Set up Python Environment
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache-dependency-path: "pyproject.toml"
 
-      - name: 🛠️ Set up uv
+      - name: ⚡ Install uv Build System
         uses: astral-sh/setup-uv@v6
 
-      - name: 📦 Install dependencies
-        run: uv sync
+      - name: 📦 Install Project Dependencies
+        run: uv sync --all-extras
 
-      - name: 🔍 Ruff lint check
-        uses: astral-sh/ruff-action@v3
-        with:
-          version: latest
+      - name: 💅 Run DroidMind Lint Script
+        run: uv run python scripts/lint.py
 
-      - name: 🧪 Run tests
+      - name: 🧪 Execute Pytest Suite
         run: uv run pytest
 
-      - name: 🐳 Set up QEMU
+      - name: 📄 Upload Test Results Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.sha }}
+          path: test-results/ # Adjust if your pytest output path is different
+
+      - name: 🐧 Set up QEMU (for multi-platform builds)
         uses: docker/setup-qemu-action@v3
 
-      - name: 🏗️ Set up Docker Buildx
+      - name: 🛠️ Set up Docker Buildx Engine
         uses: docker/setup-buildx-action@v3
 
-      - name: 🛠️ Build Docker image
+      - name: 🐳 Build Docker Image (no push)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: false # Only build, don't push
+          push: false
           tags: droidmind:latest,droidmind:${{ github.sha }}
 
-  create-release:
+  build-docs: # 📚 Build Documentation Site 🌐
+    name: 📚 Build Documentation Site 🌐
     needs: [build-and-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛰️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache-dependency-path: "pyproject.toml"
+
+      - name: ⚡ Install uv Build System
+        uses: astral-sh/setup-uv@v6
+
+      - name: 📖 Install Documentation Dependencies
+        run: uv sync --extra dev
+
+      - name: 🏗️ Build MkDocs Site
+        run: uv run mkdocs build --config-file mkdocs.yml
+
+      - name: 📤 Upload Documentation Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-${{ github.sha }}
+          path: site
+
+  deploy-docs: # 🚀 Deploy Documentation to GitHub Pages 📄
+    name: 🚀 Deploy Documentation to GitHub Pages 📄
+    needs: [build-docs]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: 🛰️ Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: 🏷️ Create Release
+      - name: 📥 Download Built Documentation Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: site-${{ github.sha }}
+          path: site
+
+      - name: 🌐 Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+
+  create-release: # 🎉 Create GitHub Release ✨
+    name: 🎉 Create GitHub Release ✨
+    needs: [build-and-test, deploy-docs]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: 🛰️ Checkout Repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for release notes generation
+
+      - name: 🏷️ Generate GitHub Release Notes
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
+          # files: | # Optional: attach files like .whl or .tar.gz to the release
+          #   dist/*.whl
+          #   dist/*.tar.gz
 
-  publish:
+  publish-pypi: # 🐍 Publish Python Package to PyPI 📦
+    name: 🐍 Publish Python Package to PyPI 📦
     needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
-      id-token: write # For trusted publishing
+      id-token: write # For trusted PyPI publishing
     steps:
-      - uses: actions/checkout@v4
+      - name: 🛰️ Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: 💿 Set up Python
+      - name: 🐍 Set up Python Environment
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          # cache-dependency-path will still cache dependencies installed by uv
 
-      - name: 🛠️ Set up uv
+      - name: ⚡ Install uv Build System
         uses: astral-sh/setup-uv@v6
 
-      - name: 📦 Build package
+      - name: 🛠️ Build Python Package
         run: |
           uv pip install build
           uv run python -m build
 
-      - name: 🚀 Publish to PyPI
+      - name: 🚀 Publish to PyPI via Trusted Publisher
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  publish-docker:
+  publish-docker: # 🐳 Publish Docker Image to Registries 🚢
+    name: 🐳 Publish Docker Image to Registries 🚢
     needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
-      packages: write # For GitHub Container Registry
+      packages: write
+      id-token: write # If using OIDC for Docker Hub
     steps:
-      - uses: actions/checkout@v4
+      - name: 🛰️ Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: 📝 Extract version from tag
+      - name: 🔖 Extract Version from Git Tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: 🐳 Set up QEMU
+      - name: 🐧 Set up QEMU (for multi-platform builds)
         uses: docker/setup-qemu-action@v3
 
-      - name: 🏗️ Set up Docker Buildx
+      - name: 🛠️ Set up Docker Buildx Engine
         uses: docker/setup-buildx-action@v3
 
       - name: 🔑 Login to Docker Hub
@@ -117,14 +189,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 🔑 Login to GitHub Container Registry
+      - name: 🔐 Login to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🚀 Build and push Docker images
+      - name: 🚀 Build & Push Docker Images to Registries
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -134,11 +206,12 @@ jobs:
           tags: |
             hyperbliss/droidmind:latest
             hyperbliss/droidmind:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/droidmind:latest
-            ghcr.io/${{ github.repository_owner }}/droidmind:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.get_version.outputs.VERSION }}
           labels: |
             org.opencontainers.image.title=DroidMind
             org.opencontainers.image.description=Control Android devices with AI through the Model Context Protocol
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ steps.get_version.outputs.VERSION }}
-            org.opencontainers.image.created=${{ github.event.repository.pushed_at }}
+            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+            org.opencontainers.image.revision=${{ github.sha }}
