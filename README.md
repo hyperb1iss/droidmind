@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/hyperb1iss-droidmind-badge.png)](https://mseep.ai/app/hyperb1iss-droidmind)
+
 # ✨ DroidMind 🤖
 
 <div align="center">
