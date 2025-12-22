@@ -259,7 +259,7 @@ wheels = [
 
 [[package]]
 name = "droidmind"
-version = "0.3.2"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

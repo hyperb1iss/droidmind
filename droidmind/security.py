@@ -27,6 +27,9 @@ class RiskLevel(Enum):
     CRITICAL = auto()
 
 
+_COMMAND_SEPARATORS: set[str] = {";", "&&", "||", "|", "&"}
+
+
 # Set of allowed shell commands based on toybox commands
 # This is a comprehensive list of generally safe commands
 ALLOWED_SHELL_COMMANDS: set[str] = {
@@ -125,6 +128,7 @@ ALLOWED_SHELL_COMMANDS: set[str] = {
     "screenrecord",
     "wm",
     "ime",
+    "uiautomator",
     # Text processing
     "awk",
     "sed",
@@ -170,6 +174,7 @@ ALLOWED_SHELL_COMMANDS: set[str] = {
 # Commands that are explicitly disallowed due to their destructive potential
 DISALLOWED_SHELL_COMMANDS: set[str] = {
     # System modification
+    "rm",
     "mkfs",
     "mke2fs",
     "mkswap",
@@ -269,55 +274,63 @@ def assess_command_risk(command: str) -> RiskLevel:
     Returns:
         RiskLevel enum indicating the risk level
     """
-    # Split the command into individual piped commands
-    piped_commands = [cmd.strip() for cmd in command.split("|")]
-
     highest_risk = RiskLevel.SAFE
 
-    for cmd in piped_commands:
-        # Split the command to get the base command
-        try:
-            parts = shlex.split(cmd)
-        except ValueError:
-            return RiskLevel.HIGH
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return RiskLevel.HIGH
 
-        if not parts:
+    # Split token stream into segments separated by shell operators.
+    segments: list[list[str]] = []
+    current: list[str] = []
+    operators: list[str] = []
+    for token in tokens:
+        if token in _COMMAND_SEPARATORS:
+            if current:
+                segments.append(current)
+                current = []
+                operators.append(token)
             continue
+        current.append(token)
+    if current:
+        segments.append(current)
 
-        base_cmd = parts[0]
+    for segment in segments:
+        if not segment:
+            continue
+        base_cmd = segment[0]
+        segment_str = " ".join(segment)
 
-        # Check if command is explicitly disallowed
         if base_cmd in DISALLOWED_SHELL_COMMANDS:
             return RiskLevel.CRITICAL
-
-        # Check if command is not in allowed list
         if base_cmd not in ALLOWED_SHELL_COMMANDS:
             return RiskLevel.HIGH
 
-        # Check for suspicious patterns
+        # uiautomator is safe-ish, but writes UI dumps to disk; treat as MEDIUM.
+        if base_cmd == "uiautomator" and highest_risk.value < RiskLevel.MEDIUM.value:
+            highest_risk = RiskLevel.MEDIUM
+
         for pattern in SUSPICIOUS_PATTERNS:
-            if re.search(pattern, cmd):
+            if re.search(pattern, segment_str):
                 return RiskLevel.HIGH
 
-        # Check for protected paths
         for path in PROTECTED_PATHS:
-            if f" {path}" in cmd or f"={path}" in cmd or cmd.startswith(path):
-                # Commands that just read from protected paths are medium risk
+            if f" {path}" in segment_str or f"={path}" in segment_str or segment_str.startswith(path):
                 if base_cmd in {"ls", "cat", "head", "tail", "grep", "find"}:
                     if highest_risk.value < RiskLevel.MEDIUM.value:
                         highest_risk = RiskLevel.MEDIUM
                 else:
-                    # Other operations on protected paths are high risk
                     return RiskLevel.HIGH
 
-        # Check for specific risky operations
-        if ">" in cmd or ">>" in cmd:
+        if ">" in segment or ">>" in segment:
             if highest_risk.value < RiskLevel.MEDIUM.value:
-                highest_risk = RiskLevel.MEDIUM  # File redirection
+                highest_risk = RiskLevel.MEDIUM
 
-        if ";" in cmd or "&&" in cmd:
-            if highest_risk.value < RiskLevel.MEDIUM.value:
-                highest_risk = RiskLevel.MEDIUM  # Command chaining
+    # Command chaining increases risk (but should still be allowed if all segments are safe).
+    if any(op in {";", "&&", "||"} for op in operators):
+        if highest_risk.value < RiskLevel.MEDIUM.value:
+            highest_risk = RiskLevel.MEDIUM
 
     return highest_risk
 
@@ -335,26 +348,53 @@ def validate_shell_command(command: str) -> bool:
     Raises:
         ValueError: If command is explicitly disallowed or contains suspicious patterns
     """
-    # Split the command to get the base command
     try:
-        parts = shlex.split(command)
+        tokens = shlex.split(command)
     except ValueError as e:
         raise ValueError(f"Invalid command syntax: {e}") from e
 
-    if not parts:
+    if not tokens:
         return True
 
-    base_cmd = parts[0]
+    # Split token stream into segments separated by shell operators.
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in _COMMAND_SEPARATORS:
+            if current:
+                segments.append(current)
+                current = []
+            continue
+        current.append(token)
+    if current:
+        segments.append(current)
 
-    # Check if command is explicitly disallowed
-    if base_cmd in DISALLOWED_SHELL_COMMANDS:
-        raise ValueError(f"Command '{base_cmd}' is explicitly disallowed for security reasons")
+    # Validate each segment independently.
+    for segment in segments:
+        if not segment:
+            continue
+        base_cmd = segment[0]
 
-    # Check if command is not in allowed list
-    if base_cmd not in ALLOWED_SHELL_COMMANDS:
-        raise ValueError(f"Command '{base_cmd}' is not in the allowed commands list")
+        if base_cmd in DISALLOWED_SHELL_COMMANDS:
+            raise ValueError(f"Command '{base_cmd}' is explicitly disallowed for security reasons")
 
-    # Check for suspicious patterns
+        if base_cmd not in ALLOWED_SHELL_COMMANDS:
+            raise ValueError(f"Command '{base_cmd}' is not in the allowed commands list")
+
+        # Extra restrictions for uiautomator: only allow safe hierarchy dumps.
+        if base_cmd == "uiautomator":
+            if len(segment) < 2 or segment[1] != "dump":
+                raise ValueError("Only 'uiautomator dump' is allowed")
+            if len(segment) > 3:
+                raise ValueError("Unsupported uiautomator arguments")
+            if len(segment) == 3:
+                output_path = segment[2]
+                if ".." in output_path:
+                    raise ValueError("Invalid uiautomator output path")
+                if not output_path.startswith(("/sdcard/", "/data/local/tmp/")):
+                    raise ValueError("uiautomator output must be under /sdcard/ or /data/local/tmp/")
+
+    # Check for suspicious patterns across the whole command string.
     for pattern in SUSPICIOUS_PATTERNS:
         if re.search(pattern, command):
             raise ValueError(f"Command contains suspicious pattern: {pattern}")

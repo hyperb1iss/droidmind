@@ -21,6 +21,7 @@ def mock_device():
     device.stop_app.return_value = "Stopped package com.example.app"
     device.clear_app_data.return_value = "Successfully cleared data for package com.example.app"
     device.get_app_list.return_value = [{"package": "com.example.app", "path": "/data/app/com.example.app.apk"}]
+    device.start_activity.return_value = "Started activity com.example.app/.MainActivity"
     device.get_app_info.return_value = {
         "version": "1.0",
         "install_path": "/data/app/com.example.app",
@@ -110,6 +111,25 @@ async def test_start_app(mock_device_manager, mock_context):
     mock_device_manager.get_device.assert_called_once_with("test_device")
     mock_device = mock_device_manager.get_device.return_value
     mock_device.start_app.assert_called_once_with("com.example.app", "")
+
+
+@pytest.mark.asyncio
+async def test_start_intent(mock_device_manager, mock_context):
+    """Test the start_intent action via app_operations."""
+    with patch("droidmind.tools.app_management.get_device_manager", return_value=mock_device_manager):
+        result = await app_operations(
+            serial="test_device",
+            action=AppAction.START_INTENT,
+            package="com.example.app",
+            activity=".MainActivity",
+            extras={"foo": "bar"},
+            ctx=mock_context,
+        )
+
+    assert "Successfully started" in result
+    mock_device_manager.get_device.assert_called_once_with("test_device")
+    mock_device = mock_device_manager.get_device.return_value
+    mock_device.start_activity.assert_called_once_with("com.example.app", ".MainActivity", {"foo": "bar"})
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ from mcp.server.fastmcp import Context
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
 from droidmind.log import logger
+from droidmind.tools.intents import start_intent
 
 
 class UIAction(Enum):
@@ -111,31 +112,6 @@ async def _press_key_impl(serial: str, keycode: int, ctx: Context) -> str:
         return f"Error: {e!s}"
 
 
-async def _start_intent_impl(
-    serial: str, package: str, activity: str, ctx: Context, extras: dict[str, str] | None = None
-) -> str:
-    """Implementation for the start_intent action."""
-    try:
-        device = await get_device_manager().get_device(serial)
-        if not device:
-            await ctx.error(f"Device {serial} not connected or not found.")
-            return f"Error: Device {serial} not connected or not found."
-
-        # Format extras for logging
-        extras_display = ""
-        if extras:
-            extras_display = f" with extras: {extras}"
-
-        await ctx.info(f"Starting activity {package}/{activity}{extras_display} on device {serial}...")
-        await device.start_activity(package, activity, extras)
-        await ctx.info(f"Activity {package}/{activity} started successfully.")
-        return f"Successfully started {package}/{activity}"
-    except Exception as e:
-        logger.exception("Error starting activity: %s", e)
-        await ctx.error(f"Error starting activity: {e!s}")
-        return f"Error: {e!s}"
-
-
 @mcp.tool(name="android-ui")
 async def android_ui(  # pylint: disable=too-many-arguments
     ctx: Context,
@@ -220,7 +196,15 @@ async def android_ui(  # pylint: disable=too-many-arguments
             await ctx.error(msg)
             return msg
         # extras is optional
-        return await _start_intent_impl(serial=serial, package=package, activity=activity, ctx=ctx, extras=extras)
+        device_manager = get_device_manager()
+        return await start_intent(
+            ctx=ctx,
+            serial=serial,
+            package=package,
+            activity=activity,
+            device_manager=device_manager,
+            extras=extras,
+        )
 
     # Should not be reached if action is a valid UIAction member
     unhandled_action_msg = f"Error: Unhandled UI action '{action}'."

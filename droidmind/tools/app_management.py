@@ -15,6 +15,7 @@ from mcp.server.fastmcp import Context
 from droidmind.context import mcp
 from droidmind.devices import get_device_manager
 from droidmind.log import logger
+from droidmind.tools.intents import start_intent
 
 
 class AppAction(str, Enum):
@@ -23,6 +24,7 @@ class AppAction(str, Enum):
     INSTALL_APP = "install_app"
     UNINSTALL_APP = "uninstall_app"
     START_APP = "start_app"
+    START_INTENT = "start_intent"
     STOP_APP = "stop_app"
     CLEAR_APP_DATA = "clear_app_data"
     LIST_PACKAGES = "list_packages"
@@ -443,13 +445,23 @@ async def _clear_app_data_impl(serial: str, package: str, ctx: Context) -> str:
         return f"Error clearing app data: {e!s}"
 
 
-async def _list_packages_impl(serial: str, ctx: Context, include_system_apps: bool = False) -> str:
+async def _list_packages_impl(
+    serial: str,
+    ctx: Context,
+    include_system_apps: bool = False,
+    include_app_name: bool = False,
+    include_apk_path: bool = True,
+    max_packages: int | None = 200,
+) -> str:
     """
     List installed packages on the device.
 
     Args:
         serial: Device serial number
         include_system_apps: Whether to include system apps in the list
+        include_app_name: Whether to attempt to include a human-friendly app name
+        include_apk_path: Whether to include the APK path
+        max_packages: Maximum number of packages to return
 
     Returns:
         Formatted list of installed packages
@@ -467,16 +479,52 @@ async def _list_packages_impl(serial: str, ctx: Context, include_system_apps: bo
         if not app_list:
             return "No packages found on the device."
 
-        result = "# Installed Packages\n\n"
-        result += "| Package Name | APK Path |\n"
-        result += "|-------------|----------|\n"
+        result_lines: list[str] = ["# Installed Packages", ""]
 
-        for app in app_list:
+        truncated_note: str | None = None
+        effective_list = app_list
+        if max_packages is not None and 0 < max_packages < len(app_list):
+            effective_list = app_list[:max_packages]
+            truncated_note = f"_Showing first {max_packages} of {len(app_list)} packages._"
+
+        # If the caller wants app names, we need per-package queries; cap to keep it responsive.
+        if include_app_name and max_packages is not None and max_packages > 50:
+            effective_list = effective_list[:50]
+            truncated_note = "_Showing first 50 packages (app names require per-package queries)._"
+
+        if truncated_note:
+            result_lines.append(truncated_note)
+            result_lines.append("")
+
+        columns: list[str] = []
+        if include_app_name:
+            columns.append("App Name")
+        columns.append("Package Name")
+        if include_apk_path:
+            columns.append("APK Path")
+
+        result_lines.append("| " + " | ".join(columns) + " |")
+        result_lines.append("|" + "|".join(["-" * (len(col) + 2) for col in columns]) + "|")
+
+        async def get_app_name(package: str) -> str:
+            # Best-effort extraction from dumpsys; varies by Android version/vendor.
+            cmd = f'dumpsys package {package} | grep "application-label" | head -n 1'
+            line = await device.run_shell(cmd)
+            match = re.search(r"application-label(?:-[^:]+)?:\\s*'?([^'\\r\\n]+)'?", line)
+            return match.group(1).strip() if match else "Unknown"
+
+        for app in effective_list:
             package_name = app.get("package", "Unknown")
             apk_path = app.get("path", "Unknown")
-            result += f"| `{package_name}` | `{apk_path}` |\n"
+            row: list[str] = []
+            if include_app_name:
+                row.append(await get_app_name(package_name))
+            row.append(f"`{package_name}`")
+            if include_apk_path:
+                row.append(f"`{apk_path}`")
+            result_lines.append("| " + " | ".join(row) + " |")
 
-        return result
+        return "\n".join(result_lines)
     except Exception as e:
         logger.exception("Error listing packages: %s", e)
         return f"Error listing packages: {e!s}"
@@ -701,6 +749,7 @@ async def _get_app_info_impl(serial: str, package: str, ctx: Context) -> str:
 
 @mcp.tool(name="android-app")
 async def app_operations(
+    # pylint: disable=too-many-arguments
     serial: str,
     action: AppAction,
     ctx: Context,
@@ -710,7 +759,11 @@ async def app_operations(
     grant_permissions: bool = True,  # For install_app
     keep_data: bool = False,  # For uninstall_app
     activity: str = "",  # For start_app
+    extras: dict[str, str] | None = None,  # For start_intent
     include_system_apps: bool = False,  # For list_packages
+    include_app_name: bool = False,  # For list_packages
+    include_apk_path: bool = True,  # For list_packages
+    max_packages: int | None = 200,  # For list_packages
 ) -> str:
     """
     Perform various application management operations on an Android device.
@@ -728,7 +781,11 @@ async def app_operations(
         grant_permissions (Optional[bool]): Whether to grant all requested permissions. Used by `install_app`.
         keep_data (Optional[bool]): Whether to keep app data and cache directories. Used by `uninstall_app`.
         activity (Optional[str]): Optional activity name to start. Used by `start_app`.
+        extras (Optional[dict[str, str]]): Optional intent extras. Used by `start_intent`.
         include_system_apps (Optional[bool]): Whether to include system apps. Used by `list_packages`.
+        include_app_name (Optional[bool]): Whether to include app labels (best-effort). Used by `list_packages`.
+        include_apk_path (Optional[bool]): Whether to include APK paths. Used by `list_packages`.
+        max_packages (Optional[int]): Max packages to return. Used by `list_packages`.
 
     Returns:
         A string message indicating the result or status of the operation.
@@ -745,12 +802,15 @@ async def app_operations(
     3.  `action="start_app"`
         - Requires: `package`
         - Optional: `activity`
+    3b. `action="start_intent"`
+        - Requires: `package`, `activity`
+        - Optional: `extras`
     4.  `action="stop_app"`
         - Requires: `package`
     5.  `action="clear_app_data"`
         - Requires: `package`
     6.  `action="list_packages"`
-        - Optional: `include_system_apps`
+        - Optional: `include_system_apps`, `include_app_name`, `include_apk_path`, `max_packages`
     7.  `action="get_app_manifest"`
         - Requires: `package`
     8.  `action="get_app_permissions"`
@@ -768,6 +828,7 @@ async def app_operations(
             in [
                 AppAction.UNINSTALL_APP,
                 AppAction.START_APP,
+                AppAction.START_INTENT,
                 AppAction.STOP_APP,
                 AppAction.CLEAR_APP_DATA,
                 AppAction.GET_APP_MANIFEST,
@@ -782,6 +843,9 @@ async def app_operations(
         if action == AppAction.INSTALL_APP and apk_path is None:
             return "❌ Error: 'apk_path' is required for action 'install_app'."
 
+        if action == AppAction.START_INTENT and not activity:
+            return "❌ Error: 'activity' is required for action 'start_intent'."
+
         # Dispatch to implementations
         if action == AppAction.INSTALL_APP:
             # We already checked apk_path is not None
@@ -790,12 +854,29 @@ async def app_operations(
             return await _uninstall_app_impl(serial, package, ctx, keep_data)  # type: ignore
         if action == AppAction.START_APP:
             return await _start_app_impl(serial, package, ctx, activity)  # type: ignore
+        if action == AppAction.START_INTENT:
+            assert package is not None
+            return await start_intent(
+                serial=serial,
+                package=package,
+                activity=activity,
+                ctx=ctx,
+                extras=extras,
+                device_manager=get_device_manager(),
+            )  # type: ignore[arg-type]
         if action == AppAction.STOP_APP:
             return await _stop_app_impl(serial, package, ctx)  # type: ignore
         if action == AppAction.CLEAR_APP_DATA:
             return await _clear_app_data_impl(serial, package, ctx)  # type: ignore
         if action == AppAction.LIST_PACKAGES:
-            return await _list_packages_impl(serial, ctx, include_system_apps)
+            return await _list_packages_impl(
+                serial,
+                ctx,
+                include_system_apps=include_system_apps,
+                include_app_name=include_app_name,
+                include_apk_path=include_apk_path,
+                max_packages=max_packages,
+            )
         if action == AppAction.GET_APP_MANIFEST:
             return await _get_app_manifest_impl(serial, package, ctx)  # type: ignore
         if action == AppAction.GET_APP_PERMISSIONS:
