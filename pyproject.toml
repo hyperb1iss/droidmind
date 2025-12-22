@@ -3,7 +3,9 @@ name = "droidmind"
 version = "0.3.1"
 description = "Control Android devices with MCP"
 readme = "README.md"
-requires-python = ">=3.13"
+# Keep the supported range aligned with our dependency stack (e.g. pydantic-core / PyO3).
+# As of now, Python 3.14 support is not universally available in our transitive deps.
+requires-python = ">=3.13,<3.14"
 license = { file = "LICENSE" }
 authors = [{ name = "Stefanie Jane", email = "stef@hyperbliss.tech" }]
 keywords = ["mcp", "android", "ai", "llm", "claude"]
@@ -17,7 +19,7 @@ classifiers = [
 # Dependencies organized by category
 dependencies = [
     # Core MCP protocol
-    "mcp[cli]>=1.8.1",
+    "mcp[cli]>=1.25.0",
     # UI and display
     "rich>=14.0.0",
     # Networking and HTTP
@@ -93,7 +95,7 @@ typeCheckingMode = "standard"
 [tool.ruff]
 # General settings
 line-length = 120
-target-version = "py312"
+target-version = "py313"
 src = ["droidmind", "tests", "scripts"]
 extend-exclude = [".venv", "docs"]
 

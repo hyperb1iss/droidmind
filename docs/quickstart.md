@@ -4,7 +4,7 @@ Welcome to DroidMind! This guide will help you quickly connect DroidMind to your
 
 ## Prerequisites
 
-- **Python & UV**: Ensure Python 3.13+ and `uv` are installed. DroidMind uses `uvx` for zero-install IDE integration.
+- **Python & UV**: Ensure Python 3.13 and `uv` are installed (Python 3.14 is not yet supported). DroidMind uses `uvx` for zero-install IDE integration.
 - **AI Assistant with MCP Support**: You'll need an AI assistant that supports the Model Context Protocol (MCP). Examples include Claude Desktop, Cursor, or others listed [here](https://modelcontextprotocol.io/clients).
 - **Android Device/Emulator**: Have an Android device connected via USB (with USB debugging enabled) or an emulator running. For network connections, ensure ADB over TCP/IP is set up.
 - **ADB**: ADB must be installed and in your system PATH.

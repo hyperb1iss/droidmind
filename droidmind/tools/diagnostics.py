@@ -80,7 +80,7 @@ async def _execute_bugreport_core(
             stderr=asyncio.subprocess.PIPE,
         )
 
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
+        _stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
         stderr_str = stderr.decode().strip() if stderr else ""
 
         if process.returncode != 0:

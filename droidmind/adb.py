@@ -505,7 +505,7 @@ class ADBWrapper:
         try:
             # Execute push command
             logger.info("Pushing %s to %s on %s", local_path, device_path, serial)
-            stdout, _ = await self._run_adb_device_command(
+            _stdout, _stderr = await self._run_adb_device_command(
                 serial,
                 ["push", local_path, device_path],
                 timeout_seconds=60,  # Longer timeout for file transfer
@@ -546,7 +546,7 @@ class ADBWrapper:
 
             # Execute pull command
             logger.info("Pulling %s from %s to %s", device_path, serial, local_path)
-            stdout, _ = await self._run_adb_device_command(
+            _stdout, _stderr = await self._run_adb_device_command(
                 serial,
                 ["pull", device_path, local_path],
                 timeout_seconds=60,  # Longer timeout for file transfer

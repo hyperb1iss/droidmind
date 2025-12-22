@@ -104,6 +104,7 @@ markdown_extensions:
 # Example nav structure if not using awesome-pages or for overriding:
 nav:
   - Home: index.md
+  - Project Plan: plan.md
   - Installation: installation.md
   - Docker Guide: docker.md
   - Quick Start: quickstart.md

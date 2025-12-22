@@ -15,6 +15,7 @@ from typing import Any, cast
 import anyio
 import click
 from mcp.server.sse import SseServerTransport
+from mcp.server.stdio import stdio_server
 from rich.logging import RichHandler
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -181,7 +182,6 @@ def run_stdio_server(config: dict[str, Any]) -> None:
     """
     # Use stdio transport for terminal use
     logger.info("Using stdio transport for terminal interaction")
-    from mcp.server.stdio import stdio_server
 
     # Determine if we should show startup message (only if log_file is specified)
     bool(config.get("log_file") and config["log_file"] != "console")

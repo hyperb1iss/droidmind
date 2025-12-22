@@ -1,5 +1,6 @@
 """Tests for the ADB wrapper module."""
 
+import shutil
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -33,8 +34,6 @@ class TestADBWrapper(unittest.TestCase):
         self.subprocess_patcher.stop()
 
         # Remove temporary directory
-        import shutil
-
         shutil.rmtree(self.temp_dir)
 
     def test_initialization(self):
@@ -78,7 +77,6 @@ class TestADBWrapperAsync:
         # Add cleanup
         def cleanup():
             subprocess_patcher.stop()
-            import shutil
 
             shutil.rmtree(temp_dir)
 

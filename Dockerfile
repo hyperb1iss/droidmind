@@ -2,22 +2,28 @@ FROM python:3.13-slim-bookworm AS builder
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl git ca-certificates && \
+    apt-get install -y --no-install-recommends git ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # Set up the application directory
 WORKDIR /app
 
-# Copy essential files for dependency installation
-COPY pyproject.toml ./
-COPY LICENSE ./
-COPY README.md ./
+# Create virtual environment and install uv
+RUN python -m venv /opt/venv
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir uv
 
-# Create virtual environment and install dependencies
-RUN python -m venv /opt/venv && \
-    . /opt/venv/bin/activate && \
-    pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e .[sse]
+# Copy dependency metadata and sync from lockfile
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --active --no-install-project
+
+# Copy the application code and install the project (deps already installed)
+COPY droidmind ./droidmind
+COPY README.md ./
+COPY LICENSE ./
+RUN pip install --no-cache-dir --no-deps .
 
 # Final stage
 FROM python:3.13-slim-bookworm
@@ -40,8 +46,8 @@ COPY entrypoint.sh ./
 # Make entrypoint script executable
 RUN chmod +x entrypoint.sh
 
-# Ensure the DroidMind CLI is accessible and scripts are executable
-ENV PATH="/opt/venv/bin:/app/.venv/bin:${PATH}"
+# Ensure the DroidMind CLI is accessible
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # Default port (still useful if user switches to SSE)
 EXPOSE 4256

@@ -4,7 +4,7 @@
 
 <img src="docs/assets/images/logo_neon_glow_icon.png" alt="DroidMind Logo" width="180" />
 
-[![Python 3.13+](https://img.shields.io/badge/python-3.13+-9D00FF.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-9D00FF.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache_2.0-FF00FF.svg?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active_development-39FF14.svg?style=for-the-badge&logo=githubactions&logoColor=white)](docs/plan.md)
 [![Code Style](https://img.shields.io/badge/code_style-ruff-00FFFF.svg?style=for-the-badge&logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
@@ -63,7 +63,7 @@ Your IDE will be configured to launch DroidMind on demand. Full instructions for
 
 ### Prerequisites
 
-- Python 3.13 or higher
+- Python 3.13 (3.14 not yet supported)
 - `uv` (Python package manager)
 - Android device with USB debugging enabled
 - ADB (Android Debug Bridge) installed and in your system's PATH
@@ -125,17 +125,17 @@ High-risk operations are flagged, and critical ones are blocked by default. Lear
 DroidMind uses `uv` for dependency management and development workflows.
 
 ```bash
-# Install/update dependencies (after cloning and activating .venv)
-uv pip install -e .[dev,sse]
+# Install/update dependencies (creates/updates `.venv`)
+uv sync --all-groups
 
 # Run tests
-pytest
+uv run pytest
 
 # Run linting
-ruff check .
+uv run ruff check .
 
 # Run type checking
-pyright # Ensure pyright is installed or use ruff's type checking capabilities
+uv run pyright
 ```
 
 ## 🤝 Contributing

@@ -6,7 +6,7 @@ Get DroidMind up and running on your system. This guide covers the primary ways 
 
 Before you begin, ensure you meet the following requirements:
 
-- **Python**: DroidMind requires Python 3.13 or higher. You can [download Python](https://www.python.org/downloads/) from the official website.
+- **Python**: DroidMind requires Python 3.13 (Python 3.14 is not yet supported). You can [download Python](https://www.python.org/downloads/) from the official website.
 - **UV**: We strongly recommend using `uv` for project and package management. It's a fast, modern Python package installer and resolver. Follow the [official uv installation guide](https://github.com/astral-sh/uv#installation).
 - **Android Device**: An Android device (physical or emulator) with USB debugging enabled.
 - **ADB (Android Debug Bridge)**: ADB must be installed and accessible in your system's PATH. ADB is part of the [Android SDK Platform Tools](https://developer.android.com/studio/releases/platform-tools).
@@ -62,21 +62,16 @@ This method gives you a local copy of the DroidMind codebase, allowing for devel
       ```
 
 3.  **Install Dependencies**:
-    With the virtual environment activated, install DroidMind and its dependencies. Choose the extras based on your needs:
+    With the virtual environment activated, install DroidMind and its dependencies using `uv`:
 
-    - **For SSE Transport (Recommended for AI Assistant web UIs, Claude Desktop, etc.):**
+    - **For running DroidMind:**
       ```bash
-      uv pip install -e .[sse]
+      uv sync --no-dev
       ```
-    - **For Stdio Transport (Direct terminal interaction):**
+    - **For development (tests, linting, docs tooling):**
       ```bash
-      uv pip install -e .[stdio]
+      uv sync --all-groups
       ```
-    - **For Development (includes all dependencies, plus dev tools):**
-      ```bash
-      uv pip install -e .[dev,sse]
-      ```
-      (Note: `dev` typically includes `stdio` and `sse` specific dependencies if structured that way in `pyproject.toml`)
 
 ## 🏃‍♀️ Running DroidMind
 
