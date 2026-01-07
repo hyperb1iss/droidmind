@@ -1,6 +1,6 @@
 [project]
 name = "droidmind"
-version = "0.3.1"
+version = "0.4.0"
 description = "Control Android devices with MCP"
 readme = "README.md"
 # Keep the supported range aligned with our dependency stack (e.g. pydantic-core / PyO3).
