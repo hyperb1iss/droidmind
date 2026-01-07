@@ -2,66 +2,70 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/docker/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/installation/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/license/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/mcp-reference/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hyperb1iss.github.io/droidmind/plan/</loc>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/quickstart/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/app_management/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/connecting_devices/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/device_diagnostics/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/device_management_actions/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/example_queries/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/file_system/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/security/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/shell_commands/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
     <url>
          <loc>https://hyperb1iss.github.io/droidmind/user_manual/ui_automation/</loc>
-         <lastmod>2025-05-16</lastmod>
+         <lastmod>2026-01-07</lastmod>
     </url>
 </urlset>
